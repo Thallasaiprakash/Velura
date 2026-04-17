@@ -27,6 +27,7 @@ const withVeluraManifest = (config) => {
       'android.permission.WAKE_LOCK',
       'android.permission.RECEIVE_BOOT_COMPLETED',
       'android.permission.FOREGROUND_SERVICE',
+      'android.permission.FOREGROUND_SERVICE_SPECIAL_USE',
     ];
 
     requiredPermissions.forEach(perm => {
@@ -57,7 +58,15 @@ const withVeluraManifest = (config) => {
     if (!mainApplication.service) mainApplication.service = [];
     if (!mainApplication.service.some(s => s.$['android:name'] === 'com.saiprakash77.velura.VoiceNotificationService')) {
       mainApplication.service.push({
-        $: { 'android:name': 'com.saiprakash77.velura.VoiceNotificationService', 'android:enabled': 'true', 'android:exported': 'false' },
+        $: { 
+          'android:name': 'com.saiprakash77.velura.VoiceNotificationService', 
+          'android:enabled': 'true', 
+          'android:exported': 'false',
+          'android:foregroundServiceType': 'specialUse'
+        },
+        'property': [
+          { $: { 'android:name': 'android.app.foreground_service_type', 'android:value': 'specialUse' } }
+        ]
       });
     }
 
@@ -210,11 +219,16 @@ import android.util.Log;
 public class TaskAlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d("VeluraTaskAlarm", "Alarm fired!");
+        Log.d("VeluraTaskAlarm", "Alarm fired for: " + intent.getStringExtra("title"));
         Intent serviceIntent = new Intent(context, VoiceNotificationService.class);
         serviceIntent.putExtra("title", intent.getStringExtra("title"));
         serviceIntent.putExtra("body", intent.getStringExtra("body"));
-        context.startService(serviceIntent);
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            context.startForegroundService(serviceIntent);
+        } else {
+            context.startService(serviceIntent);
+        }
     }
 }
 `;
@@ -246,17 +260,44 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
     private String body;
     private PowerManager.WakeLock wakeLock;
 
+    private static final int SERVICE_NOTIFICATION_ID = 1001;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent == null) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
         title = intent.getStringExtra("title");
         body = intent.getStringExtra("body");
         
+        // Android 8.0+ requires calling startForeground immediately
+        startForeground(SERVICE_NOTIFICATION_ID, createStatusNotification("Starting Velura Voice..."));
+
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
-        wakeLock.acquire(5 * 60 * 1000L /*5 minutes*/);
+        wakeLock.acquire(2 * 60 * 1000L /*2 minutes*/);
 
         tts = new TextToSpeech(this, this);
         return START_NOT_STICKY;
+    }
+
+    private android.app.Notification createStatusNotification(String text) {
+        String channelId = "velura-voice-service";
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(channelId, "Voice Service", NotificationManager.IMPORTANCE_LOW);
+            nm.createNotificationChannel(channel);
+        }
+
+        return new NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle("Velura Voice Assistant")
+            .setContentText(text)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .build();
     }
 
     @Override
