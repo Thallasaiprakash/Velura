@@ -28,7 +28,7 @@ const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string }[] 
 const QUICK_CHIPS = ['Meeting', 'Gym', 'Doctor', 'Deadline', 'Call', 'Workout', 'Study', 'Review'];
 
 export default function PlannerScreen() {
-  const { weekData, getTasksForDay, addTask, deleteTask, toggleTask, clearDay, reorderTasks } = useTasks();
+  const { userId, weekData, getTasksForDay, addTask, deleteTask, toggleTask, clearDay, reorderTasks, loading, reload } = useTasks();
 
   // Default to today's day
   const todayIdx = (new Date().getDay() + 6) % 7;
@@ -134,7 +134,11 @@ export default function PlannerScreen() {
 
       {/* Add button */}
       <View style={styles.addContainer}>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)} activeOpacity={0.8}>
+        <TouchableOpacity 
+          style={styles.addBtn} 
+          onPress={() => setShowAddModal(true)} 
+          activeOpacity={0.8}
+        >
           <Text style={styles.addBtnText}>+ Add Task</Text>
         </TouchableOpacity>
       </View>
@@ -231,4 +235,8 @@ const styles = StyleSheet.create({
   cancelText: { color: Colors.textMuted, fontSize: Theme.fontSize.md },
   addModalBtn: { flex: 2, paddingVertical: 14, alignItems: 'center', borderRadius: Theme.radius.full, backgroundColor: Colors.primary },
   addModalBtnText: { color: '#fff', fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold },
+  addBtnDisabled: {
+    opacity: 0.6,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  }
 });

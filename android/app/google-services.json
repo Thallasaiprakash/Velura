@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1013845196655",
+    "project_id": "velura-voice-app",
+    "storage_bucket": "velura-voice-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1013845196655:android:a5c024473b9dbd857eb29a",
+        "android_client_info": {
+          "package_name": "com.saiprakash77.velura"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDA38PtnCbRL9Lgo3dXziyCuC9uQ1ebrDk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

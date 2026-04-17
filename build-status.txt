@@ -1,0 +1,48 @@
+﻿[
+  {
+    "id": "a4058cc6-74c3-4315-b870-e4da9b2b08d2",
+    "status": "FINISHED",
+    "platform": "ANDROID",
+    "artifacts": {
+      "buildUrl": "https://expo.dev/artifacts/eas/mfJMdTJRWdJAaumE9BZ1aQ.apk",
+      "applicationArchiveUrl": "https://expo.dev/artifacts/eas/mfJMdTJRWdJAaumE9BZ1aQ.apk"
+    },
+    "initiatingActor": {
+      "id": "c47e5e0b-eb5b-4ae1-836a-a8b4731a8dc5",
+      "displayName": "saiprakash77"
+    },
+    "logFiles": [
+      "https://job-logs.eascdn.net/production/a4058cc6-74c3-4315-b870-e4da9b2b08d2/1775680646468-f6dbf3f8-e91c-4942-aed5-8bd129b342c9.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260408%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260408T204217Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=77b6030ea70bf15901bc6935814b6e0cf8108850320e0557f9cd664b24b734a4810f42174d0dc0eb45e8428ddf73e027415dad28edbe07f3933d88cb5049c2c94b34cc701f3f33a95d102d4f4837f5984ba0ce987806a4f37ffbfcb06b36ad59be392f7c7340675316cf0831829e6b544974ac57655feb8f1c860b466db96a5116c397ea7c6221f7498a09bbf5e88ee532f01c9a3f7d15b664528e5aead65c9fefa3cbfcca36f5cdd307537ea06bcefd9e64b25aeef6df15ef260e9638df26e69007a0448592e456cb1656e663ee52e81de5553ba2da5945378c6ad2671b9b7b00448fbc833bf83f1d0e7deba6eb1a6471e9dd733d74b8b28045f4b741a4d45d",
+      "https://job-logs.eascdn.net/production/a4058cc6-74c3-4315-b870-e4da9b2b08d2/1775680660474-030e00a5-ce65-41ef-a889-9f4c7e88f59f.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260408%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260408T204217Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=7b05646cb2f9261bafef562005306e08402734de8c942559b60a9446c3ba070763d84df06b8553f581821941113f6a2129a298929caa31d58327353700a5f0706332f66a5f9ad77a9ceb314cd1cf811ede84c33c678d2121a5b8713a41f49e31e599ebf0feeae6f3e7f271a68bdbcfcb30201062353d95a7a1f481cebd8be4e6c471ed02b050cf22a6c97915119075c628d6bb6c72bd240c1bd41e3359d1bb52bc88d4a1dda876f2810669f075f125d3b6f37e868d9355e01c6d95644a56a8e916182f59d003173e963ee12005137d1f0f22b3b104b6dde2bd5fbc546de579ccab64b46f47781f9ccf87cc543ffe5e2fade54190daf8e9eb5fe8eae2262c6ec6",
+      "https://job-logs.eascdn.net/production/a4058cc6-74c3-4315-b870-e4da9b2b08d2/1775680660692-1e3d78d7-04c9-46ed-baf9-f8bdc0f808b9.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260408%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260408T204217Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=7fa07138bbe0e58a59769122c228de5cfb245d93fa07597e52b6cb29b5711ee4af3770768d93fbcd3419905df6868f78af2753b44385c29008ea71fd0506ae92df7a2bd503264149591478c9bfa6f1baf63a0179635d3f43bd7092462032d07e94ca0909d70931c83a40697b9334e3aeb604da78ef75984e84de60da589871ae31ccdf64a9d05054e3addba01a97f72ac2565b94b390ff2a8fccf2de60be5c6dde61473bcd58b0a174fd3de06ae9f713df7bce99bbd73c8798f33ee751fc0807885e1cd79e2b8df29e2de710d9f1fc5d0ac94546284bc950ac7c6378b8fabe1d9f50d0f0dd2e546492dca04c1ca016072afb7591e4b8ea8f6e6b54023081aa7d",
+      "https://job-logs.eascdn.net/production/a4058cc6-74c3-4315-b870-e4da9b2b08d2/1775680660877-b8938d85-b977-4cba-bdf9-39dcb70909a2.txt?X-Goog-Algorithm=GOOG4-RSA-SHA256&X-Goog-Credential=www-production%40exponentjs.iam.gserviceaccount.com%2F20260408%2Fauto%2Fstorage%2Fgoog4_request&X-Goog-Date=20260408T204217Z&X-Goog-Expires=900&X-Goog-SignedHeaders=host&X-Goog-Signature=18a9aa2f17f54deded4e4e8fd43abd6db07bf84388b761878d788a301b59af5d784b8601ddcb385636a25e2369186ca7e3f9c2ec9625d9b7ae76b00374e88791c8211ccf2b2f5ef50cc83e18652665144cb86427e85632e1880ba8af6819f91fc2328a9c99b217f98c0dd927054d349fa8d2ce3c7fa6013baa8712d1e29408352a08097f656e545486dc6d72c35ca0d103b53d649c83f1308d3334016fa0cf4973f7f780ebbd3be4476b9d6ec422c87c427eadc0bd54a1978a8e845c286423dbe23fc8511e187adf6df103eb0944822b4c8a3e447c496d47469e9eb7f1997782b3cd8e326d15ba83f52a959c0cf3e4a5dd0ef3075ddf9d4e95dca4a504a62526"
+    ],
+    "project": {
+      "id": "1638ed56-4c46-4702-b710-5bb83c892916",
+      "name": "velura",
+      "slug": "velura",
+      "ownerAccount": {
+        "id": "c1c7d314-b591-4a58-8bdb-d7a9b7955441",
+        "name": "saiprakash77"
+      }
+    },
+    "distribution": "INTERNAL",
+    "buildProfile": "preview",
+    "sdkVersion": "51.0.0",
+    "appVersion": "1.0.0",
+    "appBuildVersion": "1",
+    "gitCommitHash": "04406b1fd3e75379d63df47ffa17c5fb6764ccfe",
+    "gitCommitMessage": "Initial commit",
+    "priority": "NORMAL_PLUS",
+    "createdAt": "2026-04-08T20:37:26.122Z",
+    "updatedAt": "2026-04-08T20:44:09.901Z",
+    "completedAt": "2026-04-08T20:44:08.542Z",
+    "expirationDate": "2026-04-22T20:37:26.200Z",
+    "isForIosSimulator": false,
+    "metrics": {
+      "buildWaitTime": 220,
+      "buildQueueTime": 42533,
+      "buildDuration": 359220
+    }
+  }
+]

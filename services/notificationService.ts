@@ -1,17 +1,23 @@
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
-import { Platform } from 'react-native';
+import { Platform, AppState, NativeModules } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getUserProfile, getTodaysTasks, TaskPriority } from './taskService';
+import { playGreeting, buildGreeting } from './speechService';
 
 // ==================== CONSTANTS ====================
 
 export const MORNING_GREETING_TASK = 'VELURA_MORNING_GREETING';
 export const STREAK_CHECK_TASK = 'VELURA_STREAK_CHECK';
+export const VELURA_UNLOCK_TASK = 'VELURA_UNLOCK_TASK';
 export const NOTIFICATION_IDS = {
   morning: 'velura-morning-greeting',
   weekly: 'velura-weekly-planner',
   night: 'velura-night-reminder',
 };
+
+const { VeluraAlarmModule } = NativeModules;
 
 // ==================== SETUP ====================
 
@@ -160,10 +166,138 @@ export async function scheduleNightReminderAt9PM(userName: string): Promise<void
   });
 }
 
+/**
+ * Parses time tags like "2:10 pm", "14:30", "5pm", "at 5pm" into hour and minute.
+ * Improved to handle spaces, dots, and other common separators.
+ */
+export function parseTimeTag(timeTag: string): { hour: number; minute: number } | null {
+  if (!timeTag) return null;
+
+  const input = timeTag.toLowerCase().trim();
+  // Regex for 12h or 24h format: handles 2:10pm, 2.10pm, 2 10 pm, 14:30, 5pm, etc.
+  const timeRegex = /(?:at\s+)?(\d{1,2})(?:[:.\s](\d{2}))?\s*([ap]m)?/i;
+  const match = input.match(timeRegex);
+
+  if (!match) return null;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ? parseInt(match[2], 10) : 0;
+  const ampm = match[3];
+
+  // Adjust for AM/PM
+  if (ampm === 'pm' && hour < 12) hour += 12;
+  else if (ampm === 'am' && hour === 12) hour = 0;
+  // If no AM/PM, and hour is 1-11, assume it might be PM if it's currently later than that?
+  // No, let's stick to standard 24h or explicit AM/PM to avoid confusion.
+
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return { hour, minute };
+}
+
+/**
+ * Checks if a task with a specific timeTag is due within the current minute.
+ */
+export function isTaskDueNow(timeTag: string | null): boolean {
+  if (!timeTag) return false;
+  const parsed = parseTimeTag(timeTag);
+  if (!parsed) return false;
+
+  const now = new Date();
+  return now.getHours() === parsed.hour && now.getMinutes() === parsed.minute;
+}
+
+/**
+ * Returns a formal gentleman-style message for empty tasks.
+ */
+export function getGentlemanEmptyMessage(): string {
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  return `It appears your agenda for this ${timeOfDay} is currently clear. A rare moment of tranquility.`;
+}
+
+/**
+ * Schedules a one-time notification for a specific task based on its timeTag.
+ * Now integrated with Native AlarmManager for synchronized Voice + Text.
+ */
+export async function scheduleTaskReminder(
+  taskText: string, 
+  timeTag: string, 
+  priority: TaskPriority = 'normal'
+): Promise<string | null> {
+  const parsed = parseTimeTag(timeTag);
+  if (!parsed) return null;
+
+  const { hour, minute } = parsed;
+
+  // Schedule for TODAY
+  const now = new Date();
+  let triggerDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
+
+  // If time has already passed today, schedule for tomorrow
+  if (triggerDate.getTime() <= now.getTime()) {
+    triggerDate.setDate(triggerDate.getDate() + 1);
+  }
+
+  // Ensure it's at least 30 seconds into the future to avoid immediate rejection
+  if (triggerDate.getTime() - now.getTime() < 30000) {
+    triggerDate = new Date(now.getTime() + 60000); // Set to 1 minute from now
+  }
+
+  // Check Voice Preference
+  try {
+    const profile = await getUserProfile(null);
+    const voicePref = profile?.voiceNotificationPreference || 'priority';
+    const shouldVoice = voicePref === 'all' || (voicePref === 'priority' && priority === 'urgent');
+
+    if (Platform.OS === 'android' && shouldVoice && VeluraAlarmModule) {
+      console.log(`[NotificationService] Scheduling NATIVE Voice Alarm for: ${taskText}`);
+      VeluraAlarmModule.scheduleAlarm(
+        triggerDate.getTime(),
+        'VELURA Task ⚡',
+        taskText,
+        taskText + timeTag // Using text+time as unique ID
+      );
+      // We return a "native" identifier format
+      return `native-${taskText}-${timeTag}`;
+    }
+  } catch (e) {
+    console.warn('[NotificationService] Failed to check profile for voice pref:', e);
+  }
+
+  try {
+    const identifier = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'VELURA Task ⚡',
+        body: taskText,
+        data: { type: 'task_reminder', taskText },
+        sound: 'default',
+        ...(Platform.OS === 'android' && {
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          channelId: 'velura-default',
+          color: '#a78bfa',
+        }),
+      },
+      trigger: triggerDate,
+    });
+    return identifier;
+  } catch (error) {
+    console.error('Error scheduling task reminder:', error);
+    return null;
+  }
+}
+
 // ==================== CANCEL ====================
 
 export async function cancelNotification(identifier: string): Promise<void> {
   try {
+    if (identifier.startsWith('native-')) {
+      if (Platform.OS === 'android' && VeluraAlarmModule) {
+        VeluraAlarmModule.cancelAlarm(identifier.replace('native-', ''));
+      }
+      return;
+    }
+
     await Notifications.cancelScheduledNotificationAsync(identifier);
     // Also cancel day variants
     for (let i = 0; i < 7; i++) {
@@ -189,6 +323,12 @@ export function registerBackgroundTasks(): void {
       }
     });
   }
+
+    // NOTE: VELURA_UNLOCK_TASK is now handled by the native UnlockReceiver
+    // which fires a native notification + SharedPreferences flag.
+    // Voice playback is triggered via AppState listener and post-load 
+    // useEffect in the HomeScreen component. This avoids the broken
+    // TaskManager broadcast chain that doesn't work when the app is killed.
 }
 
 export async function registerBackgroundFetch(): Promise<void> {
@@ -202,3 +342,8 @@ export async function registerBackgroundFetch(): Promise<void> {
     console.log('Background fetch registration failed:', error);
   }
 }
+
+// ==================== AUTO-REGISTRATION ====================
+// CRITICAL: Call this at the top level of the module to ensure 
+// Headless JS tasks are registered when the app is killed.
+registerBackgroundTasks();

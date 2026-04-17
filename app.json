@@ -16,14 +16,15 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.velura.app"
+      "bundleIdentifier": "com.saiprakash77.velura"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#07071a"
       },
-      "package": "com.velura.app",
+      "googleServicesFile": "./google-services.json",
+      "package": "com.saiprakash77.velura",
       "permissions": [
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE",
@@ -31,9 +32,9 @@
         "android.permission.SCHEDULE_EXACT_ALARM",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.WAKE_LOCK"
-      ],
-      "useNextNotificationsApi": true
+        "android.permission.WAKE_LOCK",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -43,9 +44,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
           "color": "#a78bfa",
-          "sounds": [],
           "androidMode": "default",
           "androidCollapsedTitle": "VELURA"
         }
@@ -55,16 +54,24 @@
         "expo-build-properties",
         {
           "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
+            "gradleVersion": "8.3",
+            "ndkVersion": "26.1.10909125"
           }
         }
-      ]
+      ],
+      "./plugins/android-unlock-plugin"
     ],
     "experiments": {
       "typedRoutes": true
     },
-    "scheme": "velura"
+    "scheme": "velura",
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "1638ed56-4c46-4702-b710-5bb83c892916"
+      }
+    }
   }
 }

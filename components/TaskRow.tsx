@@ -106,7 +106,10 @@ export function TaskRow({ task, onToggle, onDelete }: TaskRowProps) {
       {/* Delete button */}
       {onDelete && (
         <TouchableOpacity
-          onPress={() => onDelete(task.id)}
+          onPress={async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onDelete(task.id);
+          }}
           style={styles.deleteBtn}
           activeOpacity={0.7}
         >

@@ -9,10 +9,12 @@ import {
 } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from './firebase';
-import { v4 as uuidv4 } from 'uuid';
+// import { v4 as uuidv4 } from 'uuid'; // Removed due to potential native issues
+
 
 // ==================== TYPES ====================
 
+export type VoiceStyle = 'calm' | 'energetic' | 'formal' | 'gentleman';
 export type TaskPriority = 'urgent' | 'normal' | 'low';
 
 export interface Task {
@@ -24,6 +26,8 @@ export interface Task {
   timeTag: string | null;
   category: string | null;
   carriedForward: boolean;
+  notificationId?: string;
+  updatedAt: number;
 }
 
 export type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
@@ -31,20 +35,26 @@ export type DayKey = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' 
 export interface WeekData {
   weekOf: number;
   days: Record<DayKey, Task[]>;
+  updatedAt: number;
 }
 
 export interface UserProfile {
   name: string;
-  voiceStyle: 'calm' | 'energetic' | 'formal';
+  voiceStyle: VoiceStyle;
   greetingTime: string;
   greetingDays: number[];
   smartSilence: boolean;
+  notifyOnUnlock: boolean;
+  morningGreeting: boolean;
+  bedtimeSummary: boolean;
+  voiceNotificationPreference: 'priority' | 'all';
   streakCount: number;
   streakBadge: 'bronze' | 'silver' | 'gold' | null;
   weeklyFocusWord: string | null;
   createdAt: number;
   lastActiveAt: number;
 }
+
 
 // ==================== HELPERS ====================
 
@@ -62,18 +72,24 @@ export const getTodayKey = (): DayKey => {
   return days[new Date().getDay()];
 };
 
-export const createTask = (text: string, priority: TaskPriority = 'normal'): Task => ({
-  id: uuidv4(),
+export const generateId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+};
+
+export const createTask = (text: string, priority: TaskPriority = 'normal', timeTag: string | null = null): Task => ({
+  id: generateId(),
   text,
   priority,
   completed: false,
   completedAt: null,
-  timeTag: null,
+  timeTag,
   category: null,
   carriedForward: false,
+  updatedAt: Date.now(),
 });
 
-export const EMPTY_WEEK: WeekData = {
+
+export const getEmptyWeek = (): WeekData => ({
   weekOf: Date.now(),
   days: {
     monday: [],
@@ -84,13 +100,53 @@ export const EMPTY_WEEK: WeekData = {
     saturday: [],
     sunday: [],
   },
-};
+  updatedAt: 0,
+});
+
+/**
+ * Safely merges two WeekData objects, preventing duplicates by task ID.
+ * Prioritizes 'new' data but keeps any local tasks that may not have synced yet.
+ */
+export function mergeWeekData(local: WeekData, incoming: WeekData): WeekData {
+  // If incoming is very old or empty, keep local
+  if (incoming.updatedAt === 0 && local.updatedAt > 0) return local;
+
+  const mergedDays = { ...getEmptyWeek().days };
+  const allDayKeys: DayKey[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+  for (const day of allDayKeys) {
+    const localTasks = local.days[day] || [];
+    const incomingTasks = incoming.days[day] || [];
+    
+    const taskMap = new Map<string, Task>();
+    
+    // First, seed with incoming tasks (the "source of truth" from server)
+    incomingTasks.forEach(t => taskMap.set(t.id, t));
+    
+    // Then, overlay local tasks if they are newer OR don't exist in incoming
+    localTasks.forEach(localTask => {
+      const existing = taskMap.get(localTask.id);
+      if (!existing || localTask.updatedAt > existing.updatedAt) {
+        taskMap.set(localTask.id, localTask);
+      }
+    });
+    
+    mergedDays[day] = Array.from(taskMap.values());
+  }
+
+  return {
+    ...incoming,
+    days: mergedDays,
+    updatedAt: Math.max(local.updatedAt, incoming.updatedAt),
+  };
+}
 
 // ==================== LOCAL CACHE ====================
 
 const TASKS_CACHE_KEY = 'velura_tasks_cache';
 const PROFILE_CACHE_KEY = 'velura_profile_cache';
-const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const LOCAL_ONLY_TASKS_PREFIX = 'velura_local_only_tasks';
+const CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // Increase to 7 days for better offline support
 
 interface CacheEntry<T> {
   data: T;
@@ -102,7 +158,10 @@ async function getCached<T>(key: string): Promise<T | null> {
     const raw = await AsyncStorage.getItem(key);
     if (!raw) return null;
     const entry: CacheEntry<T> = JSON.parse(raw);
-    if (Date.now() - entry.timestamp > CACHE_TTL) return null;
+    
+    // Log for debugging if needed
+    // console.log(`[Cache] Found ${key}, age: ${(Date.now() - entry.timestamp)/1000}s`);
+    
     return entry.data;
   } catch {
     return null;
@@ -113,30 +172,38 @@ async function setCached<T>(key: string, data: T): Promise<void> {
   try {
     const entry: CacheEntry<T> = { data, timestamp: Date.now() };
     await AsyncStorage.setItem(key, JSON.stringify(entry));
-  } catch {}
+  } catch (e) {
+    console.error(`[Cache] Failed to set ${key}:`, e);
+  }
 }
 
 // ==================== USER PROFILE ====================
 
-export async function saveUserProfile(userId: string, profile: Partial<UserProfile>): Promise<void> {
+export async function saveUserProfile(userId: string | null, profile: Partial<UserProfile>): Promise<void> {
   try {
-    const userRef = doc(db, 'users', userId);
-    await setDoc(userRef, { ...profile, lastActiveAt: Date.now() }, { merge: true });
-    const existing = await getCached<UserProfile>(PROFILE_CACHE_KEY);
-    if (existing) {
-      await setCached(PROFILE_CACHE_KEY, { ...existing, ...profile });
+    if (userId) {
+      const userRef = doc(db, 'users', userId);
+      await setDoc(userRef, { ...profile, lastActiveAt: Date.now() }, { merge: true });
     }
+    
+    // Always update local cache regardless of auth state
+    const existing = await getCached<UserProfile>(PROFILE_CACHE_KEY);
+    await setCached(PROFILE_CACHE_KEY, { ...(existing || {}), ...profile } as UserProfile);
   } catch (error) {
     console.error('Error saving user profile:', error);
-    // Save locally if Firestore fails
+    // Fallback: Ensure local cache is updated even if Firestore fails
     const existing = await getCached<UserProfile>(PROFILE_CACHE_KEY);
     await setCached(PROFILE_CACHE_KEY, { ...(existing || {}), ...profile } as UserProfile);
   }
 }
 
-export async function getUserProfile(userId: string): Promise<UserProfile | null> {
+export async function getUserProfile(userId: string | null): Promise<UserProfile | null> {
+  // Check cache first (covers both local and server users)
   const cached = await getCached<UserProfile>(PROFILE_CACHE_KEY);
   if (cached) return cached;
+
+  // If no cache and no userId, we can't fetch from server
+  if (!userId) return null;
 
   try {
     const userRef = doc(db, 'users', userId);
@@ -155,35 +222,41 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 
 // ==================== WEEK TASKS ====================
 
-export async function getWeekTasks(userId: string, weekId: string): Promise<WeekData> {
-  const cacheKey = `${TASKS_CACHE_KEY}_${weekId}`;
+export async function getWeekTasks(userId: string | null, weekId: string): Promise<WeekData> {
+  const cacheKey = userId ? `${TASKS_CACHE_KEY}_${weekId}` : `${LOCAL_ONLY_TASKS_PREFIX}_${weekId}`;
   const cached = await getCached<WeekData>(cacheKey);
   if (cached) return cached;
+
+  if (!userId) return getEmptyWeek();
 
   try {
     const weekRef = doc(db, 'users', userId, 'weeks', weekId);
     const snap = await getDoc(weekRef);
     if (snap.exists()) {
       const data = snap.data() as WeekData;
-      await setCached(cacheKey, data);
-      return data;
+      // Ensure all days exist even if missing from DB
+      const normalized = { ...getEmptyWeek(), ...data, days: { ...getEmptyWeek().days, ...data.days } };
+      await setCached(cacheKey, normalized);
+      return normalized;
     }
-    return { ...EMPTY_WEEK, weekOf: Date.now() };
+    return getEmptyWeek();
   } catch (error) {
     console.error('Error getting week tasks:', error);
-    return { ...EMPTY_WEEK, weekOf: Date.now() };
+    return getEmptyWeek();
   }
 }
 
-export async function saveWeekTasks(userId: string, weekId: string, weekData: WeekData): Promise<void> {
+export async function saveWeekTasks(userId: string | null, weekId: string, weekData: WeekData): Promise<void> {
+  const cacheKey = userId ? `${TASKS_CACHE_KEY}_${weekId}` : `${LOCAL_ONLY_TASKS_PREFIX}_${weekId}`;
+  
   try {
-    const weekRef = doc(db, 'users', userId, 'weeks', weekId);
-    await setDoc(weekRef, weekData, { merge: false });
-    const cacheKey = `${TASKS_CACHE_KEY}_${weekId}`;
+    if (userId) {
+      const weekRef = doc(db, 'users', userId, 'weeks', weekId);
+      await setDoc(weekRef, weekData, { merge: false });
+    }
     await setCached(cacheKey, weekData);
   } catch (error) {
     console.error('Error saving week tasks:', error);
-    const cacheKey = `${TASKS_CACHE_KEY}_${weekId}`;
     await setCached(cacheKey, weekData);
   }
 }
@@ -255,4 +328,20 @@ export async function getAutoSuggestions(userId: string, dayKey: DayKey): Promis
   } catch {
     return [];
   }
+}
+
+/**
+ * Retrieves data that was saved locally before the user was authenticated.
+ */
+export async function getLocalOnlyWeekData(weekId: string): Promise<WeekData | null> {
+  const key = `${LOCAL_ONLY_TASKS_PREFIX}_${weekId}`;
+  return getCached<WeekData>(key);
+}
+
+/**
+ * Clears local-only data after it has been synced to the server.
+ */
+export async function clearLocalOnlyWeekData(weekId: string): Promise<void> {
+  const key = `${LOCAL_ONLY_TASKS_PREFIX}_${weekId}`;
+  await AsyncStorage.removeItem(key);
 }

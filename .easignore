@@ -1,0 +1,9 @@
+# EAS Build ignore patterns
+# Prevents local Windows configuration from leaking to Linux build agents
+node_modules/
+android/
+ios/
+.git/
+.expo/
+build/
+local.properties

@@ -19,7 +19,6 @@ export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    registerBackgroundTasks();
     setReady(true);
   }, []);
 

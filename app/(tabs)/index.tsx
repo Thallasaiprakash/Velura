@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  AppState,
 } from 'react-native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useTasks } from '../../hooks/useTasks';
@@ -23,8 +25,14 @@ import { ProgressRing } from '../../components/ProgressRing';
 import { StreakBadge } from '../../components/StreakBadge';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
-import { buildGreeting, VoiceStyle } from '../../services/speechService';
-import { Task, DayKey } from '../../services/taskService';
+import { buildGreeting } from '../../services/speechService';
+import { Task, DayKey, UserProfile, VoiceStyle, saveUserProfile } from '../../services/taskService';
+import { ElegantNotification } from '../../components/ElegantNotification';
+import { requestNotificationPermissions, isTaskDueNow } from '../../services/notificationService';
+import { getSuggestions } from '../../services/suggestionService';
+import * as Haptics from 'expo-haptics';
+
+
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
 import Svg, { Ellipse, Circle } from 'react-native-svg';
@@ -49,18 +57,34 @@ function formatDate(): string {
 export default function HomeScreen() {
   const router = useRouter();
   const { userId } = useAuth();
-  const { todayTasks, todayKey, allTodayDone, toggleTask, addTask, deleteTask, loading, reload } = useTasks();
-  const { speak } = useVoice();
+  const { todayTasks, todayKey, allTodayDone, toggleTask, addTask, deleteTask, loading, syncing, reload, carryForwardTasks } = useTasks();
+
+  const { speak, speaking } = useVoice();
 
   const [userName, setUserName] = useState('');
   const [voiceStyle, setVoiceStyle] = useState<VoiceStyle>('calm');
   const [streakData, setStreakData] = useState<StreakData>({ count: 0, lastCompletedDate: null, badge: null });
   const [showAddModal, setShowAddModal] = useState(false);
   const [newTaskText, setNewTaskText] = useState('');
+  const [newTaskTime, setNewTaskTime] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [showInAppNotify, setShowInAppNotify] = useState(false);
+  const [notifyTitle, setNotifyTitle] = useState('');
+  const [notifySubtitle, setNotifySubtitle] = useState('');
+  const [userProfile, setUserProfile] = useState<Partial<UserProfile> | null>(null);
+  const [lastAlertedTime, setLastAlertedTime] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
 
   useEffect(() => {
-    loadUserData();
+    const init = async () => {
+      await loadUserData();
+      const granted = await requestNotificationPermissions();
+      if (!granted) {
+        console.log('Notification permissions not granted');
+      }
+    };
+    init();
   }, [userId, allTodayDone]);
 
   const loadUserData = async () => {
@@ -70,11 +94,243 @@ export default function HomeScreen() {
     ]);
     if (name) setUserName(name);
     if (style) setVoiceStyle(style as VoiceStyle);
+    
+    // Load extended settings
+    const [unlockNotify, morningGreet, bedtimeSum] = await Promise.all([
+      AsyncStorage.getItem('velura_notify_on_unlock'),
+      AsyncStorage.getItem('velura_morning_greeting'),
+      AsyncStorage.getItem('velura_bedtime_summary'),
+    ]);
+
+    setUserProfile({
+      name: name || '',
+      voiceStyle: (style as VoiceStyle) || 'calm',
+      notifyOnUnlock: unlockNotify === 'true',
+      morningGreeting: morningGreet !== 'false', // Default true
+      bedtimeSummary: bedtimeSum !== 'false', // Default true
+    });
 
     // Update streak
     const newStreak = await updateStreak(allTodayDone);
     setStreakData(newStreak);
   };
+
+  const handleReplayGreeting = () => {
+    const text = buildGreeting(userName, todayTasks, voiceStyle, streakData.badge);
+    speak(text, voiceStyle);
+  };
+
+  const checkAndPlayMorningGreeting = async () => {
+    const now = new Date();
+    const isMorning = now.getHours() < 12;
+    if (!isMorning) return;
+
+    const lastGreetDate = await AsyncStorage.getItem('velura_last_morning_greet');
+    const todayStr = now.toDateString();
+
+    if (lastGreetDate !== todayStr) {
+      // Small delay to ensure everything is loaded and user is ready
+      setTimeout(() => {
+        handleReplayGreeting();
+      }, 1500);
+      await AsyncStorage.setItem('velura_last_morning_greet', todayStr);
+    }
+  };
+
+  // Cooldown ref to prevent voice from firing multiple times in quick succession
+  const lastVoiceTriggerRef = useRef<number>(0);
+  const VOICE_COOLDOWN_MS = 30000; // 30 second cooldown between voice triggers
+
+  const triggerVoiceBriefing = useCallback(async (tasksToUse: Task[]) => {
+    const now = Date.now();
+    if (now - lastVoiceTriggerRef.current < VOICE_COOLDOWN_MS) {
+      console.log('[Briefing] Voice cooldown active, skipping.');
+      return;
+    }
+    lastVoiceTriggerRef.current = now;
+
+    console.log('[Briefing] Auto-triggering voice briefing...');
+    const text = buildGreeting(userName, tasksToUse, voiceStyle, streakData.badge);
+    speak(text, voiceStyle);
+  }, [userName, voiceStyle, streakData.badge, speak]);
+
+  const checkAndShowNotification = async (overrideTasks?: Task[]) => {
+    // Only block if loading; guests should see notifications too
+    if (loading || !userProfile?.notifyOnUnlock) return;
+
+    const tasksToUse = overrideTasks || todayTasks;
+    const pending = tasksToUse.filter(t => !t.completed);
+    
+    if (pending.length > 0) {
+      const nowHours = new Date().getHours();
+      const isEvening = nowHours >= 21; 
+
+      if (isEvening && userProfile?.bedtimeSummary) {
+        setNotifyTitle("Gentleman's Review");
+        setNotifySubtitle(`It's late, ${userName}. Shall we reschedule your ${pending.length} remaining tasks?`);
+        setNotifyAction("Move");
+      } else {
+        setNotifyTitle("Agenda Briefing");
+        setNotifySubtitle(`You have ${pending.length} tasks pending. Reading them for you now...`);
+        setNotifyAction("Speak");
+        
+        // Auto-trigger voice for unlock notifications with a delay
+        // 800ms gives Android audio stack time to fully wake up
+        setTimeout(() => {
+          if (AppState.currentState === 'active') {
+            triggerVoiceBriefing(tasksToUse);
+          }
+        }, 800);
+      }
+      
+      setShowInAppNotify(true);
+      await AsyncStorage.setItem('velura_last_foreground_notify', Date.now().toString());
+    }
+  };
+
+  const [notifyAction, setNotifyAction] = useState<'Speak' | 'Move'>('Speak');
+
+  const handleNotificationAction = async () => {
+    setShowInAppNotify(false);
+    if (notifyAction === 'Speak') {
+      handleReplayGreeting();
+    } else {
+      // Bedtime Push logic
+      const tomorrowKey = getTomorrowKey();
+      await carryForwardTasks(todayKey, tomorrowKey);
+      setNotifyTitle("Tasks Moved");
+      setNotifySubtitle("I've rescheduled them for tomorrow. Rest well.");
+      setNotifyAction('Speak'); // Reset for next show
+      setShowInAppNotify(true);
+      setTimeout(() => setShowInAppNotify(false), 3000);
+    }
+  };
+
+  // Refs for stable AppState listener
+  const checkNotifyRef = useRef(checkAndShowNotification);
+  const reloadRef = useRef(reload);
+  
+  useEffect(() => {
+    checkNotifyRef.current = checkAndShowNotification;
+    reloadRef.current = reload;
+  });
+
+  // AppState Listener for "Unlock" / Foreground logic
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        console.log('[AppState] App is active (Unlock scenario)');
+        
+        // 1. Trigger voice briefing using ref
+        checkNotifyRef.current();
+        
+        // 2. Perform background sync
+        reloadRef.current().catch(e => console.error('[AppState] Background sync failed', e));
+      }
+    });
+
+    // Initial check on mount only if loading is done
+    if (!loading) {
+      checkNotifyRef.current();
+    }
+
+    return () => {
+      subscription.remove();
+    };
+  }, []); // Truly stable listener
+
+  // Periodic "Due Now" Check (every 30s)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentMinute = `${now.getHours()}:${now.getMinutes()}`;
+      
+      if (lastAlertedTime === currentMinute) return;
+
+      const dueTask = todayTasks.find(t => !t.completed && isTaskDueNow(t.timeTag));
+      if (dueTask) {
+        setNotifyTitle("Task Alert ⚡");
+        setNotifySubtitle(dueTask.text);
+        setNotifyAction("Speak");
+        setShowInAppNotify(true);
+        setLastAlertedTime(currentMinute);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [todayTasks, lastAlertedTime]);
+
+  // Automatic Morning Greeting logic
+  useEffect(() => {
+    // Only block if loading; guests (no userId) should still get greeted
+    if (!loading && userProfile?.morningGreeting) {
+      checkAndPlayMorningGreeting();
+    }
+  }, [loading, userId, userProfile]);
+
+  // CRITICAL: Post-load unlock voice trigger
+  // This handles the case where the app was COLD STARTED (killed state) via
+  // the native unlock notification. AppState 'active' fires before data loads,
+  // so we need this separate trigger that runs AFTER loading completes.
+  useEffect(() => {
+    if (!loading && userProfile?.notifyOnUnlock && todayTasks.length > 0) {
+      const pending = todayTasks.filter(t => !t.completed);
+      if (pending.length > 0) {
+        // Check if we should trigger voice (only on initial load, not on every re-render)
+        const checkColdStartBriefing = async () => {
+          const lastNotify = await AsyncStorage.getItem('velura_last_foreground_notify');
+          const now = Date.now();
+          // Only auto-trigger if no recent notification was shown (prevents double-fire)
+          if (!lastNotify || now - parseInt(lastNotify) > VOICE_COOLDOWN_MS) {
+            console.log('[ColdStart] Data loaded, triggering unlock voice briefing');
+            setNotifyTitle("Agenda Briefing");
+            setNotifySubtitle(`You have ${pending.length} tasks pending. Reading them for you now...`);
+            setNotifyAction("Speak");
+            setShowInAppNotify(true);
+            
+            // Delay voice slightly to ensure UI is rendered
+            setTimeout(() => {
+              if (AppState.currentState === 'active') {
+                triggerVoiceBriefing(todayTasks);
+              }
+            }, 1200);
+            
+            await AsyncStorage.setItem('velura_last_foreground_notify', now.toString());
+          }
+        };
+        checkColdStartBriefing();
+      }
+    }
+  }, [loading, userProfile?.notifyOnUnlock]); // Only runs when loading transitions to false
+
+  const getTomorrowKey = (): DayKey => {
+    const days: DayKey[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const tomorrow = (new Date().getDay() + 1) % 7;
+    return days[tomorrow];
+  };
+
+  const togglePreference = async (key: keyof UserProfile, value: boolean) => {
+    const updated = { ...userProfile, [key]: value } as UserProfile;
+    setUserProfile(updated);
+    
+    // Persist locally
+    const storageKey = `velura_${key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)}`;
+    await AsyncStorage.setItem(storageKey, String(value));
+    
+    // Persist to server if logged in
+    if (userId) {
+      await saveUserProfile(userId, { [key]: value });
+    }
+
+    // Success feedback
+    setNotifyTitle("Preference Saved");
+    setNotifySubtitle(`${key.replace(/([A-Z])/g, ' $1').toLowerCase()} is now ${value ? 'Enabled' : 'Disabled'}.`);
+    setNotifyAction('Speak');
+    setShowInAppNotify(true);
+    setTimeout(() => setShowInAppNotify(false), 2000);
+  };
+
+
 
   const handleToggle = useCallback(
     (taskId: string) => {
@@ -92,15 +348,25 @@ export default function HomeScreen() {
 
   const handleAddTask = async () => {
     if (!newTaskText.trim()) return;
-    await addTask(todayKey, newTaskText.trim());
+    await addTask(todayKey, newTaskText.trim(), 'normal', newTaskTime || undefined);
     setNewTaskText('');
+    setNewTaskTime('');
     setShowAddModal(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleReplayGreeting = () => {
-    const text = buildGreeting(userName, todayTasks, voiceStyle, streakData.badge);
-    speak(text, voiceStyle);
+  useEffect(() => {
+    if (showAddModal) {
+      getSuggestions().then(setSuggestions);
+    }
+  }, [showAddModal]);
+
+  const selectSuggestion = (text: string) => {
+    setNewTaskText(text);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
+
+
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -113,6 +379,18 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.bgPrimary} />
+
+      <ElegantNotification
+        visible={showInAppNotify}
+        title={notifyTitle}
+        subtitle={notifySubtitle}
+        onDismiss={() => setShowInAppNotify(false)}
+        onAction={handleNotificationAction}
+        actionText={notifyAction}
+        isVoiceActive={speaking}
+      />
+
+
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -131,8 +409,17 @@ export default function HomeScreen() {
             <Ellipse cx="50" cy="50" rx="40" ry="22" fill="none" stroke={Colors.primary} strokeWidth="3" />
             <Circle cx="50" cy="50" r="16" fill="none" stroke={Colors.primary} strokeWidth="2.5" />
             <Circle cx="50" cy="50" r="7" fill={Colors.primary} />
+            {syncing && (
+              <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />
+            )}
           </Svg>
         </View>
+
+        {syncing && (
+          <View style={styles.syncingBanner}>
+             <Text style={styles.syncingText}>Updating your schedule...</Text>
+          </View>
+        )}
 
         {/* Progress Card */}
         <View style={styles.progressCard}>
@@ -172,7 +459,11 @@ export default function HomeScreen() {
             <Text style={styles.sectionTitle}>Today's Tasks</Text>
             <Text style={styles.sectionMeta}>{completedCount}/{todayTasks.length} done</Text>
           </View>
-          {todayTasks.length === 0 ? (
+          {loading && todayTasks.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>Syncing universe... ✨</Text>
+            </View>
+          ) : todayTasks.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No tasks for today ✨</Text>
               <Text style={styles.emptySubText}>Tap "Add task" below to get started</Text>
@@ -193,6 +484,26 @@ export default function HomeScreen() {
                 ))}
             </View>
           )}
+        </View>
+
+        {/* Preferences Toggle Section */}
+        <View style={styles.prefsSection}>
+          <TouchableOpacity 
+            style={[styles.prefPill, userProfile?.notifyOnUnlock && styles.prefPillActive]}
+            onPress={() => togglePreference('notifyOnUnlock', !userProfile?.notifyOnUnlock)}
+          >
+            <Text style={[styles.prefText, userProfile?.notifyOnUnlock && styles.prefTextActive]}>
+              {userProfile?.notifyOnUnlock ? '🔔 Auto-Notify On' : '🔕 Auto-Notify Off'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.prefPill, userProfile?.morningGreeting && styles.prefPillActive]}
+            onPress={() => togglePreference('morningGreeting', !userProfile?.morningGreeting)}
+          >
+            <Text style={[styles.prefText, userProfile?.morningGreeting && styles.prefTextActive]}>
+              {userProfile?.morningGreeting ? '🌅 Morning Greeting On' : '💤 Morning Silent'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Quick actions */}
@@ -235,6 +546,38 @@ export default function HomeScreen() {
               returnKeyType="done"
               onSubmitEditing={handleAddTask}
             />
+            <TextInput
+              style={[styles.modalInput, { fontSize: Theme.fontSize.sm }]}
+              value={newTaskTime}
+              onChangeText={setNewTaskTime}
+              placeholder="Time (optional, e.g. 2:10 pm)"
+              placeholderTextColor={Colors.textUltraMuted}
+            />
+            
+            {suggestions.length > 0 && (
+              <View style={styles.suggestionsContainer}>
+                <View style={styles.suggestionsHeader}>
+                  <Text style={styles.suggestionTitle}>Suggested for you</Text>
+                  <Text style={styles.suggestionHelp}>Tap to select</Text>
+                </View>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false} 
+                  contentContainerStyle={styles.suggestionsList}
+                >
+                  {suggestions.map((s, i) => (
+                    <TouchableOpacity 
+                      key={i} 
+                      style={styles.suggestionPill}
+                      onPress={() => selectSuggestion(s)}
+                    >
+                      <Text style={styles.suggestionText}>+ {s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowAddModal(false)}>
                 <Text style={styles.cancelText}>Cancel</Text>
@@ -284,4 +627,67 @@ const styles = StyleSheet.create({
   cancelText: { color: Colors.textMuted, fontSize: Theme.fontSize.md },
   addModalBtn: { flex: 2, paddingVertical: 14, alignItems: 'center', borderRadius: Theme.radius.full, backgroundColor: Colors.primary },
   addModalText: { color: '#fff', fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold },
+  prefsSection: { flexDirection: 'row', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
+  prefPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Theme.radius.full, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)' },
+  prefPillActive: { backgroundColor: 'rgba(167,139,250,0.15)', borderColor: Colors.primary },
+  prefText: { color: Colors.textMuted, fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.medium },
+  prefTextActive: { color: Colors.primary },
+  syncingBanner: { 
+    backgroundColor: 'rgba(167,139,250,0.1)', 
+    borderRadius: Theme.radius.md, 
+    paddingVertical: 8, 
+    alignItems: 'center', 
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.2)'
+  },
+  syncingText: {
+    color: Colors.primary,
+    fontSize: Theme.fontSize.xs,
+    fontWeight: Theme.fontWeight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 1
+  },
+  actionBtnDisabled: {
+    opacity: 0.6,
+    backgroundColor: Colors.bgSurface,
+  },
+  suggestionsContainer: {
+    marginBottom: 24,
+  },
+  suggestionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  suggestionTitle: {
+    color: Colors.textMuted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  suggestionHelp: {
+    color: Colors.textUltraMuted,
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  suggestionsList: {
+    paddingRight: 20,
+    gap: 8,
+  },
+  suggestionPill: {
+    backgroundColor: 'rgba(167,139,250,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: Theme.radius.lg,
+  },
+  suggestionText: {
+    color: Colors.primary,
+    fontSize: Theme.fontSize.sm,
+    fontWeight: '700',
+  },
 });

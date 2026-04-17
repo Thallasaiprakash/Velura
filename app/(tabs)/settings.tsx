@@ -14,8 +14,10 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useVoice } from '../../hooks/useVoice';
-import { buildGreeting, VoiceStyle, playVoicePreview } from '../../services/speechService';
+import { buildGreeting, playVoicePreview } from '../../services/speechService';
+import { VoiceStyle } from '../../services/taskService';
 import { cancelAllNotifications } from '../../services/notificationService';
+
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
 import { USERNAME_KEY } from '../onboarding/step-name';
@@ -29,7 +31,9 @@ const VOICE_OPTIONS: { style: VoiceStyle; emoji: string; label: string }[] = [
   { style: 'calm', emoji: '🌙', label: 'Calm' },
   { style: 'energetic', emoji: '⚡', label: 'Energetic' },
   { style: 'formal', emoji: '👔', label: 'Formal' },
+  { style: 'gentleman', emoji: '🎩', label: 'Gentleman' },
 ];
+
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -60,7 +64,12 @@ export default function SettingsScreen() {
   const [greetingMinute, setGreetingMinute] = useState(0);
   const [greetingDays, setGreetingDays] = useState([0, 1, 2, 3, 4, 5, 6]);
   const [smartSilence, setSmartSilence] = useState(false);
+  const [notifyOnUnlock, setNotifyOnUnlock] = useState(false);
+  const [morningGreeting, setMorningGreeting] = useState(true);
+  const [bedtimeSummary, setBedtimeSummary] = useState(true);
+  const [voiceNotificationPreference, setVoiceNotificationPreference] = useState<'priority' | 'all'>('priority');
   const [selectedAvatar, setSelectedAvatar] = useState(0);
+
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempHour, setTempHour] = useState('7');
   const [tempMinute, setTempMinute] = useState('00');
@@ -88,7 +97,19 @@ export default function SettingsScreen() {
     }
     if (silence) setSmartSilence(silence === 'true');
     if (days) setGreetingDays(JSON.parse(days));
+
+    const [unlock, morning, bedtime, voicePref] = await Promise.all([
+      AsyncStorage.getItem('velura_notify_on_unlock'),
+      AsyncStorage.getItem('velura_morning_greeting'),
+      AsyncStorage.getItem('velura_bedtime_summary'),
+      AsyncStorage.getItem('velura_voice_notification_preference'),
+    ]);
+    if (unlock) setNotifyOnUnlock(unlock === 'true');
+    if (morning) setMorningGreeting(morning !== 'false');
+    if (bedtime) setBedtimeSummary(bedtime !== 'false');
+    if (voicePref) setVoiceNotificationPreference(voicePref as 'priority' | 'all');
   };
+
 
   const saveName = async () => {
     if (nameInput.trim().length < 2) return;
@@ -125,6 +146,27 @@ export default function SettingsScreen() {
     setSmartSilence(value);
     await AsyncStorage.setItem(SMART_SILENCE_KEY, String(value));
   };
+
+  const toggleNotifyOnUnlock = async (value: boolean) => {
+    setNotifyOnUnlock(value);
+    await AsyncStorage.setItem('velura_notify_on_unlock', String(value));
+  };
+
+  const toggleMorningGreeting = async (value: boolean) => {
+    setMorningGreeting(value);
+    await AsyncStorage.setItem('velura_morning_greeting', String(value));
+  };
+
+  const toggleBedtimeSummary = async (value: boolean) => {
+    setBedtimeSummary(value);
+    await AsyncStorage.setItem('velura_bedtime_summary', String(value));
+  };
+
+  const toggleVoicePreference = async (pref: 'priority' | 'all') => {
+    setVoiceNotificationPreference(pref);
+    await AsyncStorage.setItem('velura_voice_notification_preference', pref);
+  };
+
 
   const formatTime = () => {
     const ampm = greetingHour >= 12 ? 'PM' : 'AM';
@@ -202,6 +244,36 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Voice Announcement Mode */}
+        <SectionHeader title="Voice Announcement Mode" />
+        <View style={styles.card}>
+          <TouchableOpacity 
+            style={[styles.prefOption, voiceNotificationPreference === 'priority' && styles.prefOptionActive]} 
+            onPress={() => toggleVoicePreference('priority')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.prefHeader}>
+              <Text style={styles.prefTitle}>Priority Tasks Only</Text>
+              {voiceNotificationPreference === 'priority' && <Text style={styles.prefCheck}>✓</Text>}
+            </View>
+            <Text style={styles.prefDescription}>Only "Urgent" tasks trigger voice announcements.</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.divider} />
+          
+          <TouchableOpacity 
+            style={[styles.prefOption, voiceNotificationPreference === 'all' && styles.prefOptionActive]} 
+            onPress={() => toggleVoicePreference('all')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.prefHeader}>
+              <Text style={styles.prefTitle}>All Scheduled Tasks</Text>
+              {voiceNotificationPreference === 'all' && <Text style={styles.prefCheck}>✓</Text>}
+            </View>
+            <Text style={styles.prefDescription}>Every task with a time tag will be announced.</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Greeting */}
         <SectionHeader title="Morning Greeting" />
         <View style={styles.card}>
@@ -227,6 +299,50 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Automation */}
+        <SectionHeader title="Automation" />
+        <View style={styles.card}>
+          <SettingsRow label="Notify on Unlock">
+            <Switch
+              value={notifyOnUnlock}
+              onValueChange={toggleNotifyOnUnlock}
+              trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.primary }}
+              thumbColor="#fff"
+            />
+          </SettingsRow>
+          <Text style={styles.settingsHelp}>
+            Show reminders the moment you open the app.
+          </Text>
+
+          <View style={styles.divider} />
+
+          <SettingsRow label="Morning Agenda">
+            <Switch
+              value={morningGreeting}
+              onValueChange={toggleMorningGreeting}
+              trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.primary }}
+              thumbColor="#fff"
+            />
+          </SettingsRow>
+          <Text style={styles.settingsHelp}>
+            Speak your plan for the day automatically in the morning.
+          </Text>
+
+          <View style={styles.divider} />
+
+          <SettingsRow label="Bedtime Push">
+            <Switch
+              value={bedtimeSummary}
+              onValueChange={toggleBedtimeSummary}
+              trackColor={{ false: 'rgba(255,255,255,0.1)', true: Colors.primary }}
+              thumbColor="#fff"
+            />
+          </SettingsRow>
+          <Text style={styles.settingsHelp}>
+            Prompt to move unfinished tasks to tomorrow in the evening.
+          </Text>
+        </View>
+
         {/* Behaviour */}
         <SectionHeader title="Behaviour" />
         <View style={styles.card}>
@@ -242,6 +358,7 @@ export default function SettingsScreen() {
             When all tasks are done, skip the morning greeting entirely.
           </Text>
         </View>
+
 
         {/* About */}
         <SectionHeader title="About" />
@@ -299,7 +416,9 @@ const styles = StyleSheet.create({
   pageTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold, marginBottom: 24 },
   sectionHeader: { color: Colors.textUltraMuted, fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.bold, letterSpacing: Theme.letterSpacing.wider, marginTop: 24, marginBottom: 8, textTransform: 'uppercase' },
   card: { backgroundColor: Colors.bgSurface, borderRadius: Theme.radius.lg, padding: 16, borderWidth: 1, borderColor: 'rgba(167,139,250,0.1)', gap: 12 },
+  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 4 },
   settingsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+
   settingsLabel: { color: Colors.textPrimary, fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.medium },
   settingsHelp: { color: Colors.textUltraMuted, fontSize: Theme.fontSize.xs, lineHeight: 16 },
   avatarRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
@@ -318,6 +437,14 @@ const styles = StyleSheet.create({
   voiceBtnLabel: { color: Colors.textMuted, fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.medium },
   testVoiceBtn: { alignItems: 'center', paddingVertical: 10, borderRadius: Theme.radius.full, backgroundColor: 'rgba(167,139,250,0.1)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.2)' },
   testVoiceText: { color: Colors.primary, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },
+  
+  prefOption: { paddingVertical: 4 },
+  prefOptionActive: {},
+  prefHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  prefTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.medium },
+  prefCheck: { color: Colors.primary, fontWeight: 'bold' },
+  prefDescription: { color: Colors.textUltraMuted, fontSize: Theme.fontSize.xs },
+
   timeBtn: { backgroundColor: 'rgba(167,139,250,0.12)', borderRadius: Theme.radius.md, paddingHorizontal: 14, paddingVertical: 8 },
   timeBtnText: { color: Colors.primary, fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold },
   subLabel: { color: Colors.textMuted, fontSize: Theme.fontSize.sm, fontWeight: Theme.fontWeight.medium },

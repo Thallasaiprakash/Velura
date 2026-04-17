@@ -9,6 +9,12 @@ web-build/
 *.key
 *.mobileprovision
 *.orig.*
-web-build/
+
+# Android build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+local.properties
+
 # macOS
 .DS_Store
