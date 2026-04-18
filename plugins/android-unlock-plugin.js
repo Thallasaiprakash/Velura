@@ -319,28 +319,46 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
     private PowerManager.WakeLock wakeLock;
     private AudioManager audioManager;
     private AudioFocusRequest focusRequest;
+    private int originalVolume = -1;
 
+    private static final String TAG = "VeluraVoice";
     private static final int SERVICE_NOTIFICATION_ID = 1001;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        Log.d(TAG, "=== VoiceNotificationService STARTED ===");
+        
         if (intent == null) {
+            Log.e(TAG, "Intent is null, stopping");
             stopSelf();
             return START_NOT_STICKY;
         }
 
         title = intent.getStringExtra("title");
         body = intent.getStringExtra("body");
+        Log.d(TAG, "Will speak: " + body);
         
-        startForeground(SERVICE_NOTIFICATION_ID, createStatusNotification("Velura is speaking..."));
+        startForeground(SERVICE_NOTIFICATION_ID, createStatusNotification("[VOICE ACTIVE] Speaking..."));
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        
+        // FORCE VOLUME: Save current and boost to max on ALARM stream
+        try {
+            originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0);
+            Log.d(TAG, "Volume forced to max: " + maxVolume + " (was " + originalVolume + ")");
+        } catch (Exception e) {
+            Log.e(TAG, "Volume boost failed: " + e.getMessage());
+        }
+
         requestAudioFocus();
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
-        wakeLock.acquire(1 * 60 * 1000L);
+        wakeLock.acquire(2 * 60 * 1000L);
 
+        Log.d(TAG, "Initializing TTS engine...");
         tts = new TextToSpeech(this, this);
         return START_NOT_STICKY;
     }
@@ -348,16 +366,17 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
     private void requestAudioFocus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             AudioAttributes playbackAttributes = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build();
             focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                 .setAudioAttributes(playbackAttributes)
                 .setAcceptsDelayedFocusGain(true)
                 .build();
-            audioManager.requestAudioFocus(focusRequest);
+            int result = audioManager.requestAudioFocus(focusRequest);
+            Log.d(TAG, "Audio focus result: " + result);
         } else {
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+            audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
         }
     }
 
@@ -380,33 +399,53 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
 
     @Override
     public void onInit(int status) {
+        Log.d(TAG, "TTS onInit called with status: " + status);
         if (status == TextToSpeech.SUCCESS) {
-            tts.setLanguage(Locale.US);
+            int langResult = tts.setLanguage(Locale.US);
+            Log.d(TAG, "TTS language set result: " + langResult);
             tts.setPitch(1.0f);
             tts.setSpeechRate(1.0f);
 
-            // Using AudioAttributes for TTS to ensure it respects Focus
+            // Use ALARM stream for TTS - this is NEVER muted on Xiaomi
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 AudioAttributes aa = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build();
                 tts.setAudioAttributes(aa);
+                Log.d(TAG, "TTS AudioAttributes set to USAGE_ALARM");
             }
 
-            tts.speak(body, TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
+            Log.d(TAG, "Speaking now: " + body);
+            int speakResult = tts.speak(body, TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
+            Log.d(TAG, "TTS speak() result: " + speakResult);
             
             new Thread(() -> {
                 try { Thread.sleep(3000); } catch (Exception ignored) {} 
                 while (tts != null && tts.isSpeaking()) {
                     try { Thread.sleep(500); } catch (Exception ignored) {}
                 }
+                Log.d(TAG, "Speech finished, cleaning up");
+                restoreVolume();
                 abandonAudioFocus();
                 stopForeground(true);
                 stopSelf();
             }).start();
         } else {
+            Log.e(TAG, "TTS initialization FAILED with status: " + status);
+            restoreVolume();
             stopSelf();
+        }
+    }
+
+    private void restoreVolume() {
+        if (audioManager != null && originalVolume >= 0) {
+            try {
+                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalVolume, 0);
+                Log.d(TAG, "Volume restored to: " + originalVolume);
+            } catch (Exception e) {
+                Log.e(TAG, "Volume restore failed: " + e.getMessage());
+            }
         }
     }
 
@@ -422,6 +461,7 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
 
     @Override
     public void onDestroy() {
+        Log.d(TAG, "VoiceNotificationService destroyed");
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -429,6 +469,7 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }
+        restoreVolume();
         abandonAudioFocus();
         super.onDestroy();
     }

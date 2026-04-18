@@ -244,17 +244,14 @@ export async function scheduleTaskReminder(
     triggerDate = new Date(now.getTime() + 60000); // Set to 1 minute from now
   }
 
-  // Check Voice Preference
+  // ALWAYS use the Native Alarm for voice on Android — this is the core USP of VELURA
+  // The native alarm triggers BOTH text notification AND voice speech simultaneously
   try {
-    const profile = await getUserProfile(null);
-    const voicePref = profile?.voiceNotificationPreference || 'priority';
-    const shouldVoice = voicePref === 'all' || (voicePref === 'priority' && priority === 'urgent');
-
-    if (Platform.OS === 'android' && shouldVoice && VeluraAlarmModule) {
-      console.log(`[NotificationService] Scheduling NATIVE Voice Alarm for: ${taskText}`);
+    if (Platform.OS === 'android' && VeluraAlarmModule) {
+      console.log(`[NotificationService] Scheduling NATIVE Voice Alarm for: ${taskText} at ${triggerDate.getTime()}`);
       VeluraAlarmModule.scheduleAlarm(
         triggerDate.getTime(),
-        'VELURA Task ⚡',
+        '🔊 VELURA Reminder',
         taskText,
         taskText + timeTag // Using text+time as unique ID
       );
@@ -262,7 +259,7 @@ export async function scheduleTaskReminder(
       return `native-${taskText}-${timeTag}`;
     }
   } catch (e) {
-    console.warn('[NotificationService] Failed to check profile for voice pref:', e);
+    console.warn('[NotificationService] Native alarm scheduling failed, falling back to Expo:', e);
   }
 
   try {
