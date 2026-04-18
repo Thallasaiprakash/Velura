@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { registerBackgroundTasks } from '../services/notificationService';
+import { PermissionGuardian } from '../components/PermissionGuardian';
 import { Colors } from '../constants/colors';
 
 // Set notification handler at module level
@@ -33,6 +34,7 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
+      <PermissionGuardian />
       <Stack
         screenOptions={{
           headerShown: false,
