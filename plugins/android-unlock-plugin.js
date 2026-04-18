@@ -62,10 +62,10 @@ const withVeluraManifest = (config) => {
           'android:name': 'com.saiprakash77.velura.VoiceNotificationService', 
           'android:enabled': 'true', 
           'android:exported': 'false',
-          'android:foregroundServiceType': 'specialUse'
+          'android:foregroundServiceType': 'mediaPlayback'
         },
         'property': [
-          { $: { 'android:name': 'android.app.foreground_service_type', 'android:value': 'specialUse' } }
+          { $: { 'android:name': 'android.app.foreground_service_type', 'android:value': 'mediaPlayback' } }
         ]
       });
     }
@@ -216,19 +216,63 @@ import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
 
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
+import android.util.Log;
+
+import androidx.core.app.NotificationCompat;
+
 public class TaskAlarmReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
-        Log.d("VeluraTaskAlarm", "Alarm fired for: " + intent.getStringExtra("title"));
+        String title = intent.getStringExtra("title");
+        String body = intent.getStringExtra("body");
+        Log.d("VeluraTaskAlarm", "Alarm fired for: " + title);
+
+        // 1. SHOW TEXT NOTIFICATION IMMEDIATELY (Safety first)
+        showInstantNotification(context, title, body);
+
+        // 2. START VOICE SERVICE
         Intent serviceIntent = new Intent(context, VoiceNotificationService.class);
-        serviceIntent.putExtra("title", intent.getStringExtra("title"));
-        serviceIntent.putExtra("body", intent.getStringExtra("body"));
+        serviceIntent.putExtra("title", title);
+        serviceIntent.putExtra("body", body);
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(serviceIntent);
         } else {
             context.startService(serviceIntent);
         }
+    }
+
+    private void showInstantNotification(Context context, String title, String body) {
+        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        String channelId = "velura-tasks";
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH);
+            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            nm.createNotificationChannel(channel);
+        }
+
+        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        PendingIntent pi = PendingIntent.getActivity(context, (int)System.currentTimeMillis(), launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_MAX) // High priority for Xiaomi
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(0xFFA78BFA);
+
+        nm.notify((int) System.currentTimeMillis(), builder.build());
     }
 }
 `;
@@ -272,12 +316,12 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         title = intent.getStringExtra("title");
         body = intent.getStringExtra("body");
         
-        // Android 8.0+ requires calling startForeground immediately
-        startForeground(SERVICE_NOTIFICATION_ID, createStatusNotification("Starting Velura Voice..."));
+        // Start foreground immediately with a subtle status notification
+        startForeground(SERVICE_NOTIFICATION_ID, createStatusNotification("Velura is speaking..."));
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
-        wakeLock.acquire(2 * 60 * 1000L /*2 minutes*/);
+        wakeLock.acquire(1 * 60 * 1000L /*1 minute is plenty for speech*/);
 
         tts = new TextToSpeech(this, this);
         return START_NOT_STICKY;
@@ -304,20 +348,19 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
     public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS) {
             tts.setLanguage(Locale.US);
-            tts.setPitch(0.9f); // Slightly deeper gentleman voice
+            tts.setPitch(0.9f); 
             tts.setSpeechRate(0.95f);
 
-            // 1. Fire Notification
-            showNotification();
-
-            // 2. Speak
+            // We no longer call showNotification() here because TaskAlarmReceiver did it!
+            
             tts.speak(body, TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
             
-            // Wait for speech to finish then stop service
             new Thread(() -> {
-                while (tts.isSpeaking()) {
+                try { Thread.sleep(2000); } catch (Exception ignored) {} // Give it a head start
+                while (tts != null && tts.isSpeaking()) {
                     try { Thread.sleep(500); } catch (Exception ignored) {}
                 }
+                stopForeground(true);
                 stopSelf();
             }).start();
         } else {
@@ -325,28 +368,7 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         }
     }
 
-    private void showNotification() {
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        String channelId = "velura-tasks";
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(new NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH));
-        }
-
-        // Add PendingIntent to open the app on tap
-        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        PendingIntent pi = PendingIntent.getActivity(this, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pi)
-            .setColor(0xFFA78BFA); // Match #a78bfa
-
-        nm.notify((int) System.currentTimeMillis(), builder.build());
-    }
+    // Function showNotification() removed - moved to TaskAlarmReceiver for better reliability
 
     @Override
     public void onDestroy() {
