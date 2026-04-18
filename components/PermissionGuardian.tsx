@@ -21,22 +21,23 @@ export const PermissionGuardian: React.FC = () => {
   const [permissions, setPermissions] = useState({
     exactAlarm: true,
     batteryOptimization: true,
+    overlay: true,
   });
 
   const checkPermissions = async () => {
-    if (Platform.OS !== 'android' || !VeluraAlarmModule) return;
+    if (Platform.OS !== 'android' || !NativeModules.VeluraAlarmModule) return;
 
     try {
       const exactAlarm = await VeluraAlarmModule.canScheduleExactAlarms();
       const batteryOptimization = await VeluraAlarmModule.isIgnoringBatteryOptimizations();
+      const overlay = await VeluraAlarmModule.canDrawOverlays();
       const xiaomi = await VeluraAlarmModule.isXiaomiDevice();
 
       setIsXiaomi(xiaomi);
-      setPermissions({ exactAlarm, batteryOptimization });
+      setPermissions({ exactAlarm, batteryOptimization, overlay });
 
-      // Only show modal if a critical permission (Exact Alarm) is missing
-      // Battery optimization is recommended but Exact Alarm is mandatory for Android 14
-      if (!exactAlarm) {
+      // Show modal if Exact Alarm or Overlay is missing (critical for Xiaomi voice/waking)
+      if (!exactAlarm || !overlay) {
         setShowModal(true);
       }
     } catch (e) {
@@ -64,6 +65,10 @@ export const PermissionGuardian: React.FC = () => {
     VeluraAlarmModule.openBatteryOptimizationSettings();
   };
 
+  const handleOpenOverlaySettings = () => {
+    VeluraAlarmModule.openOverlaySettings();
+  };
+
   if (!showModal) return null;
 
   return (
@@ -77,7 +82,7 @@ export const PermissionGuardian: React.FC = () => {
 
           <ScrollView style={styles.scroll}>
             <Text style={styles.description}>
-              To ensure your voice notifications fire exactly on time, we need a few Android permissions.
+              To ensure your voice notifications fire exactly on time, we need to bypass Xiaomi's power management.
             </Text>
 
             {!permissions.exactAlarm && (
@@ -87,7 +92,7 @@ export const PermissionGuardian: React.FC = () => {
                   <Text style={styles.cardTitle}>Alarms & Reminders</Text>
                 </View>
                 <Text style={styles.cardText}>
-                  Mandatory for Android 14. Allows VELURA to wake up the system for your voice briefing.
+                  Mandatory for Android 14. Allows VELURA to wake up for your voice briefing.
                 </Text>
                 <TouchableOpacity 
                   style={styles.button} 
@@ -98,20 +103,20 @@ export const PermissionGuardian: React.FC = () => {
               </View>
             )}
 
-            {!permissions.batteryOptimization && (
+            {!permissions.overlay && (
               <View style={styles.card}>
                 <View style={styles.cardHeader}>
-                  <Ionicons name="battery-dead-outline" size={20} color={Colors.textPrimary} />
-                  <Text style={styles.cardTitle}>Battery Optimization</Text>
+                  <Ionicons name="copy-outline" size={20} color={Colors.textPrimary} />
+                  <Text style={styles.cardTitle}>Display Over Other Apps</Text>
                 </View>
                 <Text style={styles.cardText}>
-                  Xiaomi devices often kill background apps. Setting this to "Don't Optimize" prevents this.
+                  Allows VELURA to wake the lock screen for voice reminders.
                 </Text>
                 <TouchableOpacity 
-                  style={[styles.button, { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.primary }]} 
-                  onPress={handleOpenBatterySettings}
+                  style={styles.button} 
+                  onPress={handleOpenOverlaySettings}
                 >
-                  <Text style={[styles.buttonText, { color: Colors.primary }]}>Fix Battery Saver</Text>
+                  <Text style={styles.buttonText}>Enable Overlay Access</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -119,12 +124,20 @@ export const PermissionGuardian: React.FC = () => {
             {isXiaomi && (
               <View style={[styles.card, { borderColor: '#f59e0b' }]}>
                 <View style={styles.cardHeader}>
-                  <Ionicons name="warning-outline" size={20} color="#f59e0b" />
-                  <Text style={[styles.cardTitle, { color: '#f59e0b' }]}>Xiaomi Autostart</Text>
+                  <Ionicons name="flash-outline" size={20} color="#f59e0b" />
+                  <Text style={[styles.cardTitle, { color: '#f59e0b' }]}>Xiaomi Critical Fix</Text>
                 </View>
                 <Text style={styles.cardText}>
-                  Xiaomi requires you to manually allow "Autostart" in App Settings for background tasks.
+                  1. Long press app icon → App Info.{"\n"}
+                  2. Set <Text style={{fontWeight: 'bold'}}>Battery Saver</Text> to <Text style={{fontWeight: 'bold', color: '#f59e0b'}}>"No Restrictions"</Text>.{"\n"}
+                  3. Turn <Text style={{fontWeight: 'bold'}}>"Autostart"</Text> ON.
                 </Text>
+                <TouchableOpacity 
+                  style={[styles.button, { backgroundColor: '#f59e0b' }]} 
+                  onPress={handleOpenBatterySettings}
+                >
+                  <Text style={styles.buttonText}>Open App Info</Text>
+                </TouchableOpacity>
               </View>
             )}
           </ScrollView>
@@ -133,7 +146,7 @@ export const PermissionGuardian: React.FC = () => {
             style={styles.closeButton} 
             onPress={() => setShowModal(false)}
           >
-            <Text style={styles.closeButtonText}>I'll do it later</Text>
+            <Text style={styles.closeButtonText}>I've completed these steps</Text>
           </TouchableOpacity>
         </View>
       </View>
