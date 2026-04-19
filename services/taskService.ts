@@ -16,6 +16,8 @@ import { db } from './firebase';
 
 export type VoiceStyle = 'calm' | 'energetic' | 'formal' | 'gentleman';
 export type TaskPriority = 'urgent' | 'normal' | 'low';
+export type EnergyLevel = 'force' | 'flow' | 'fade';
+export type Chronotype = 'lark' | 'owl' | 'third-bird';
 
 export interface Task {
   id: string;
@@ -27,6 +29,7 @@ export interface Task {
   category: string | null;
   carriedForward: boolean;
   notificationId?: string;
+  energyLevel: EnergyLevel;
   updatedAt: number;
 }
 
@@ -51,6 +54,7 @@ export interface UserProfile {
   streakCount: number;
   streakBadge: 'bronze' | 'silver' | 'gold' | null;
   weeklyFocusWord: string | null;
+  chronotype?: Chronotype;
   createdAt: number;
   lastActiveAt: number;
 }
@@ -76,7 +80,7 @@ export const generateId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
 };
 
-export const createTask = (text: string, priority: TaskPriority = 'normal', timeTag: string | null = null): Task => ({
+export const createTask = (text: string, priority: TaskPriority = 'normal', timeTag: string | null = null, energyLevel: EnergyLevel = 'flow'): Task => ({
   id: generateId(),
   text,
   priority,
@@ -85,6 +89,7 @@ export const createTask = (text: string, priority: TaskPriority = 'normal', time
   timeTag,
   category: null,
   carriedForward: false,
+  energyLevel,
   updatedAt: Date.now(),
 });
 

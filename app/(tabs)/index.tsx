@@ -26,10 +26,12 @@ import { StreakBadge } from '../../components/StreakBadge';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
 import { buildGreeting } from '../../services/speechService';
-import { Task, DayKey, UserProfile, VoiceStyle, saveUserProfile } from '../../services/taskService';
+import { Task, DayKey, UserProfile, VoiceStyle, saveUserProfile, Chronotype } from '../../services/taskService';
 import { ElegantNotification } from '../../components/ElegantNotification';
 import { requestNotificationPermissions, isTaskDueNow } from '../../services/notificationService';
 import { getSuggestions } from '../../services/suggestionService';
+import { deconstructTask } from '../../services/aiService';
+import { getCurrentEnergyState, getEnergyDescription } from '../../services/auraService';
 import * as Haptics from 'expo-haptics';
 
 
@@ -60,6 +62,7 @@ export default function HomeScreen() {
   const { todayTasks, todayKey, allTodayDone, toggleTask, addTask, deleteTask, loading, syncing, reload, carryForwardTasks } = useTasks();
 
   const { speak, speaking } = useVoice();
+  const currentEnergy = getCurrentEnergyState(userProfile?.chronotype);
 
   const [userName, setUserName] = useState('');
   const [voiceStyle, setVoiceStyle] = useState<VoiceStyle>('calm');
@@ -74,6 +77,8 @@ export default function HomeScreen() {
   const [userProfile, setUserProfile] = useState<Partial<UserProfile> | null>(null);
   const [lastAlertedTime, setLastAlertedTime] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showChronotypeModal, setShowChronotypeModal] = useState(false);
+  const [isDeconstructing, setIsDeconstructing] = useState(false);
 
 
   useEffect(() => {
@@ -96,10 +101,11 @@ export default function HomeScreen() {
     if (style) setVoiceStyle(style as VoiceStyle);
     
     // Load extended settings
-    const [unlockNotify, morningGreet, bedtimeSum] = await Promise.all([
+    const [unlockNotify, morningGreet, bedtimeSum, savedChronotype] = await Promise.all([
       AsyncStorage.getItem('velura_notify_on_unlock'),
       AsyncStorage.getItem('velura_morning_greeting'),
       AsyncStorage.getItem('velura_bedtime_summary'),
+      AsyncStorage.getItem('velura_chronotype'),
     ]);
 
     setUserProfile({
@@ -108,7 +114,13 @@ export default function HomeScreen() {
       notifyOnUnlock: unlockNotify === 'true',
       morningGreeting: morningGreet !== 'false', // Default true
       bedtimeSummary: bedtimeSum !== 'false', // Default true
+      chronotype: (savedChronotype as Chronotype) || undefined,
     });
+    
+    // Trigger modal if chronotype is not set and we're not syncing/loading wildly
+    if (!savedChronotype) {
+      setTimeout(() => setShowChronotypeModal(true), 2000);
+    }
 
     // Update streak
     const newStreak = await updateStreak(allTodayDone);
@@ -309,7 +321,7 @@ export default function HomeScreen() {
     return days[tomorrow];
   };
 
-  const togglePreference = async (key: keyof UserProfile, value: boolean) => {
+  const togglePreference = async (key: keyof UserProfile, value: any) => {
     const updated = { ...userProfile, [key]: value } as UserProfile;
     setUserProfile(updated);
     
@@ -323,11 +335,24 @@ export default function HomeScreen() {
     }
 
     // Success feedback
-    setNotifyTitle("Preference Saved");
-    setNotifySubtitle(`${key.replace(/([A-Z])/g, ' $1').toLowerCase()} is now ${value ? 'Enabled' : 'Disabled'}.`);
+    if (typeof value === 'boolean') {
+        setNotifyTitle("Preference Saved");
+        setNotifySubtitle(`${key.replace(/([A-Z])/g, ' $1').toLowerCase()} is now ${value ? 'Enabled' : 'Disabled'}.`);
+        setNotifyAction('Speak');
+        setShowInAppNotify(true);
+        setTimeout(() => setShowInAppNotify(false), 2000);
+    }
+  };
+
+  const handleSetChronotype = async (ct: Chronotype) => {
+    await togglePreference('chronotype', ct);
+    setShowChronotypeModal(false);
+    setNotifyTitle("Bio-Sync Active ⚡");
+    setNotifySubtitle(`Optimizing tasks for a ${ct} state.`);
     setNotifyAction('Speak');
     setShowInAppNotify(true);
-    setTimeout(() => setShowInAppNotify(false), 2000);
+    setTimeout(() => setShowInAppNotify(false), 3000);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
 
@@ -366,7 +391,37 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-
+  const handleDeconstruct = async (taskId: string, text: string) => {
+    setIsDeconstructing(true);
+    setNotifyTitle("AI Deconstruction");
+    setNotifySubtitle(`Breaking down "${text}" into atomic steps...`);
+    setNotifyAction("Speak");
+    setShowInAppNotify(true);
+    
+    try {
+      const subtasks = await deconstructTask(text);
+      
+      // Delete original parent task
+      deleteTask(todayKey, taskId);
+      
+      // Add subtasks
+      for (const sub of subtasks) {
+        await addTask(todayKey, sub.text, 'normal', sub.timeTag);
+      }
+      
+      setNotifyTitle("Task Deconstructed ✨");
+      setNotifySubtitle(`Created ${subtasks.length} simple steps.`);
+      setTimeout(() => setShowInAppNotify(false), 3000);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      console.error(e);
+      setNotifyTitle("Deconstruction Failed");
+      setNotifySubtitle(e.message || "Could not reach the AI.");
+      setTimeout(() => setShowInAppNotify(false), 4000);
+    } finally {
+      setIsDeconstructing(false);
+    }
+  };
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -397,22 +452,32 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
-        {/* Header */}
+        {/* Header - The Aura */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greetingText}>
               {getGreetingPrefix()}, {userName || 'Friend'} 👋
             </Text>
-            <Text style={styles.dateText}>{formatDate()}</Text>
+            <View style={styles.auraBadge}>
+               <Text style={styles.auraBadgeText}>
+                 {userProfile?.chronotype ? getEnergyDescription(getCurrentEnergyState(userProfile.chronotype)) : formatDate()}
+               </Text>
+            </View>
           </View>
-          <Svg width={40} height={40} viewBox="0 0 100 100">
-            <Ellipse cx="50" cy="50" rx="40" ry="22" fill="none" stroke={Colors.primary} strokeWidth="3" />
-            <Circle cx="50" cy="50" r="16" fill="none" stroke={Colors.primary} strokeWidth="2.5" />
-            <Circle cx="50" cy="50" r="7" fill={Colors.primary} />
-            {syncing && (
-              <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />
-            )}
-          </Svg>
+          <View style={styles.auraContainer}>
+            <Svg width={40} height={40} viewBox="0 0 100 100">
+              <Ellipse cx="50" cy="50" rx="40" ry="22" fill="none" 
+                  stroke={getCurrentEnergyState(userProfile?.chronotype) === 'force' ? Colors.danger : getCurrentEnergyState(userProfile?.chronotype) === 'flow' ? Colors.success : Colors.primary} 
+                  strokeWidth="3" />
+              <Circle cx="50" cy="50" r="16" fill="none" stroke={Colors.textPrimary} strokeWidth="2.5" />
+              <Circle cx="50" cy="50" r="7" fill={getCurrentEnergyState(userProfile?.chronotype) === 'force' ? Colors.danger : getCurrentEnergyState(userProfile?.chronotype) === 'flow' ? Colors.success : Colors.primary} />
+              {syncing && (
+                <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />
+              )}
+            </Svg>
+            {/* The Animated Glow */}
+            <View style={[styles.auraGlow, { backgroundColor: getCurrentEnergyState(userProfile?.chronotype) === 'force' ? Colors.danger : getCurrentEnergyState(userProfile?.chronotype) === 'flow' ? Colors.success : Colors.primary }]} />
+          </View>
         </View>
 
         {syncing && (
@@ -463,6 +528,14 @@ export default function HomeScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>Syncing universe... ✨</Text>
             </View>
+          ) : isDeconstructing ? (
+            <View style={styles.emptyState}>
+               <Svg width={40} height={40} viewBox="0 0 100 100">
+                <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />
+               </Svg>
+               <Text style={[styles.emptyText, { marginTop: 16 }]}>Consulting the Oracle...</Text>
+               <Text style={styles.emptySubText}>Breaking down your task into 5-minute atomic chunks.</Text>
+            </View>
           ) : todayTasks.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>No tasks for today ✨</Text>
@@ -474,13 +547,13 @@ export default function HomeScreen() {
               {todayTasks
                 .filter((t) => t.priority === 'urgent' && !t.completed)
                 .map((t) => (
-                  <TaskRow key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />
+                  <TaskRow key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onDeconstruct={handleDeconstruct} isAuraMatched={t.energyLevel === currentEnergy} />
                 ))}
               {/* Normal tasks */}
               {todayTasks
                 .filter((t) => t.priority !== 'urgent' || t.completed)
                 .map((t) => (
-                  <TaskRow key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} />
+                  <TaskRow key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onDeconstruct={handleDeconstruct} isAuraMatched={t.energyLevel === currentEnergy} />
                 ))}
             </View>
           )}
@@ -530,6 +603,45 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Bio-Calibration Modal */}
+      <Modal visible={showChronotypeModal} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { paddingBottom: 30 }]}>
+            <Text style={{ fontSize: 24, marginBottom: 10 }}>🧬</Text>
+            <Text style={styles.modalTitle}>Bio-Calibration</Text>
+            <Text style={[styles.emptySubText, { marginBottom: 24, textAlign: 'left' }]}>
+              VELURA isn't just a calendar. It's a bio-sync engine. When do you feel most unstoppable?
+            </Text>
+            
+            <View style={{ gap: 12 }}>
+              <TouchableOpacity style={styles.chronotypeCard} onPress={() => handleSetChronotype('lark')}>
+                <Text style={styles.chronotypeIcon}>🌅</Text>
+                <View>
+                  <Text style={styles.chronotypeTitle}>Morning Lark</Text>
+                  <Text style={styles.chronotypeDesc}>Peak energy early in the day.</Text>
+                </View>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.chronotypeCard} onPress={() => handleSetChronotype('owl')}>
+                <Text style={styles.chronotypeIcon}>🦉</Text>
+                <View>
+                  <Text style={styles.chronotypeTitle}>Night Owl</Text>
+                  <Text style={styles.chronotypeDesc}>Unstoppable after the sun sets.</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.chronotypeCard} onPress={() => handleSetChronotype('third-bird')}>
+                <Text style={styles.chronotypeIcon}>🦅</Text>
+                <View>
+                  <Text style={styles.chronotypeTitle}>The Standard</Text>
+                  <Text style={styles.chronotypeDesc}>Steady 9-to-5 momentum.</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Add Task Modal */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
@@ -599,6 +711,10 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
   greetingText: { color: Colors.textPrimary, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
   dateText: { color: Colors.textMuted, fontSize: Theme.fontSize.sm, marginTop: 2 },
+  auraBadge: { backgroundColor: 'rgba(167,139,250,0.1)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Theme.radius.md, marginTop: 6 },
+  auraBadgeText: { color: Colors.primary, fontSize: Theme.fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  auraContainer: { position: 'relative', width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  auraGlow: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.2, filter: 'blur(10px)' as any }, // Simulate glow
   progressCard: { backgroundColor: Colors.bgSurface, borderRadius: Theme.radius.lg, padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: 'rgba(167,139,250,0.15)', marginBottom: 16 },
   progressLeft: { flex: 1, marginRight: 12 },
   progressTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold, marginBottom: 4 },
@@ -690,4 +806,27 @@ const styles = StyleSheet.create({
     fontSize: Theme.fontSize.sm,
     fontWeight: '700',
   },
+  chronotypeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(167,139,250,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.2)',
+    padding: 16,
+    borderRadius: Theme.radius.md,
+    gap: 16
+  },
+  chronotypeIcon: {
+    fontSize: 28,
+  },
+  chronotypeTitle: {
+    color: Colors.textPrimary,
+    fontSize: Theme.fontSize.md,
+    fontWeight: Theme.fontWeight.bold,
+  },
+  chronotypeDesc: {
+    color: Colors.textMuted,
+    fontSize: Theme.fontSize.xs,
+    marginTop: 2
+  }
 });

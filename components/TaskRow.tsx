@@ -17,6 +17,8 @@ interface TaskRowProps {
   task: Task;
   onToggle: (taskId: string) => void;
   onDelete?: (taskId: string) => void;
+  onDeconstruct?: (taskId: string, text: string) => void;
+  isAuraMatched?: boolean;
 }
 
 const PRIORITY_COLORS = {
@@ -25,7 +27,7 @@ const PRIORITY_COLORS = {
   low: Colors.low,
 };
 
-export function TaskRow({ task, onToggle, onDelete }: TaskRowProps) {
+export function TaskRow({ task, onToggle, onDelete, onDeconstruct, isAuraMatched }: TaskRowProps) {
   const checkScale = useSharedValue(1);
   const rowOpacity = useSharedValue(1);
 
@@ -58,7 +60,11 @@ export function TaskRow({ task, onToggle, onDelete }: TaskRowProps) {
   const dotColor = PRIORITY_COLORS[task.priority] || Colors.primary;
 
   return (
-    <Animated.View style={[styles.row, rowStyle]}>
+    <Animated.View style={[
+      styles.row, 
+      rowStyle, 
+      isAuraMatched && !task.completed ? styles.rowAuraMatched : null
+    ]}>
       {/* Priority dot */}
       <View
         style={[
@@ -103,6 +109,20 @@ export function TaskRow({ task, onToggle, onDelete }: TaskRowProps) {
         </View>
       </View>
 
+      {/* AI Deconstruct button */}
+      {!task.completed && onDeconstruct && (
+        <TouchableOpacity
+          onPress={async () => {
+             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+             onDeconstruct(task.id, task.text);
+          }}
+          style={styles.actionBtn}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.actionIconStar}>✨</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Delete button */}
       {onDelete && (
         <TouchableOpacity
@@ -110,7 +130,7 @@ export function TaskRow({ task, onToggle, onDelete }: TaskRowProps) {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onDelete(task.id);
           }}
-          style={styles.deleteBtn}
+          style={styles.actionBtn}
           activeOpacity={0.7}
         >
           <Text style={styles.deleteIcon}>×</Text>
@@ -131,6 +151,15 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     borderWidth: 1,
     borderColor: 'rgba(167,139,250,0.1)',
+  },
+  rowAuraMatched: {
+    borderColor: Colors.primary,
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 3,
   },
   priorityDot: {
     width: 6,
@@ -196,12 +225,15 @@ const styles = StyleSheet.create({
     color: Colors.gold,
     fontSize: 12,
   },
-  deleteBtn: {
-    width: 28,
-    height: 28,
+  actionBtn: {
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
+    marginLeft: 2,
+  },
+  actionIconStar: {
+    fontSize: 16,
   },
   deleteIcon: {
     color: Colors.textMuted,
