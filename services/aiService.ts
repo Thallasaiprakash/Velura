@@ -8,9 +8,30 @@ export interface DeconstructedSubtask {
   timeTag: string; // e.g., '10m', '5m'
 }
 
+/**
+ * Robustly extracts JSON from a string that might contain markdown or extra text.
+ */
+function extractJSON<T>(content: string): T {
+  try {
+    // Attempt direct parse first
+    return JSON.parse(content);
+  } catch (e) {
+    // Look for JSON block patterns: ```json ... ``` or just [ ... ] or { ... }
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || content.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[1]);
+      } catch (innerError) {
+        console.error('[aiService] Failed to parse extracted JSON:', innerError);
+      }
+    }
+    throw new Error('Could not parse AI response as valid data.');
+  }
+}
+
 export async function deconstructTask(taskText: string): Promise<DeconstructedSubtask[]> {
   if (!OPENAI_API_KEY || OPENAI_API_KEY === 'YOUR_OPENAI_API_KEY_HERE') {
-    throw new Error('OpenAI API Key is missing. Please add it to your .env file.');
+    throw new Error('API Key Missing. Please check your .env configuration.');
   }
 
   const prompt = `You are a productivity expert for a futuristic app called VELURA.
@@ -18,7 +39,7 @@ Your goal is to eliminate procrastination. The user has a task: "${taskText}".
 Break this task down into 2 to 4 tiny, strictly actionable "atomic" sub-tasks. 
 Each sub-task should feel incredibly easy and take 5-15 minutes max.
 
-Respond ONLY with a valid JSON array of objects. Do not include markdown formatting or extra text.
+Respond ONLY with a valid JSON array of objects.
 Format: [{"text": "subtask description", "timeTag": "5m"}, ... ]
 `;
 
@@ -30,26 +51,24 @@ Format: [{"text": "subtask description", "timeTag": "5m"}, ... ]
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo', // Or 'gpt-4o-mini' for fast/cheap deconstruction
+        model: 'gpt-4o-mini', 
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
+        temperature: 0.3, // Lower temperature for more consistent JSON
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Failed to fetch from OpenAI');
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.error?.message || `API Error (${response.status})`;
+      throw new Error(message);
     }
 
     const data = await response.json();
     const content = data.choices[0].message.content.trim();
-    
-    // Attempt to parse JSON
-    const parsedSubtasks: DeconstructedSubtask[] = JSON.parse(content);
-    return parsedSubtasks;
-  } catch (error) {
+    return extractJSON<DeconstructedSubtask[]>(content);
+  } catch (error: any) {
     console.error('[aiService] Task Deconstruction Failed:', error);
-    throw error;
+    throw new Error(error.message || 'The Neural Engine is experiencing turbulence. Please try again.');
   }
 }
 
@@ -61,7 +80,7 @@ export interface NeuralVentedTask {
 
 export async function parseNeuralVenting(ventText: string): Promise<NeuralVentedTask[]> {
   if (!OPENAI_API_KEY || OPENAI_API_KEY === 'YOUR_OPENAI_API_KEY_HERE') {
-    throw new Error('OpenAI API Key is missing. Please add it to your .env file.');
+    throw new Error('API Key Missing. Please check your .env configuration.');
   }
 
   const VENT_SYSTEM_PROMPT = `You are the VELURA Neural Engine. The user is doing a "Neural Vent" - dumping their chaotic thoughts, anxieties, and scattered to-dos in raw stream-of-consciousness.
@@ -80,28 +99,27 @@ Respond ONLY with a valid JSON array of objects. Format: [{"text": "clean task d
         Authorization: `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
           { role: 'system', content: VENT_SYSTEM_PROMPT },
           { role: 'user', content: ventText }
         ],
-        temperature: 0.5,
+        temperature: 0.4,
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Failed to fetch from OpenAI');
+      const errorData = await response.json().catch(() => ({}));
+      const message = errorData.error?.message || `API Error (${response.status})`;
+      throw new Error(message);
     }
 
     const data = await response.json();
     const content = data.choices[0].message.content.trim();
-    
-    // Attempt to parse JSON
-    const parsedTasks: NeuralVentedTask[] = JSON.parse(content);
-    return parsedTasks;
-  } catch (error) {
+    return extractJSON<NeuralVentedTask[]>(content);
+  } catch (error: any) {
     console.error('[aiService] Neural Venting Parse Failed:', error);
-    throw error;
+    throw new Error(error.message || 'The Neural Engine could not decode your thoughts just yet.');
   }
 }
+

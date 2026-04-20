@@ -23,6 +23,7 @@ import { loadStreakData, updateStreak, StreakData } from '../../hooks/useStreak'
 import { ProgressRing } from '../../components/ProgressRing';
 import { StreakBadge } from '../../components/StreakBadge';
 import { TaskOrbit } from '../../components/TaskOrbit';
+import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 import { FlowTunnelModal } from '../../components/FlowTunnelModal';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
@@ -86,6 +87,9 @@ export default function HomeScreen() {
   const [ventText, setVentText] = useState('');
   const [isVenting, setIsVenting] = useState(false);
 
+  // Session Stars (Achievement Stars)
+  const [achievementStars, setAchievementStars] = useState<number>(0);
+
   useEffect(() => {
     const init = async () => {
       await loadUserData();
@@ -130,6 +134,10 @@ export default function HomeScreen() {
     // Update streak
     const newStreak = await updateStreak(allTodayDone);
     setStreakData(newStreak);
+
+    // Load session stars
+    const savedStars = await AsyncStorage.getItem('velura_session_stars');
+    if (savedStars) setAchievementStars(parseInt(savedStars));
   };
 
   const handleReplayGreeting = () => {
@@ -465,9 +473,21 @@ export default function HomeScreen() {
 
   const completedCount = todayTasks.filter((t) => t.completed).length;
 
+  const handleTaskOrbitComplete = async (taskId: string) => {
+    handleToggle(taskId);
+    const newVal = achievementStars + 1;
+    setAchievementStars(newVal);
+    await AsyncStorage.setItem('velura_session_stars', String(newVal));
+  };
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.bgPrimary} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      <BackgroundUniverse 
+        energyState={currentEnergy as any} 
+        achievementCount={achievementStars}
+      />
 
       <ElegantNotification
         visible={showInAppNotify}
@@ -575,11 +595,19 @@ export default function HomeScreen() {
               <Text style={styles.emptySubText}>You are clear to rest.</Text>
             </View>
           ) : (
-            <TaskOrbit 
-              tasks={todayTasks} 
-              onCompleteTask={handleToggle} 
-              onEnterTunnel={(task) => setActiveTunnelTask(task)} 
-            />
+            <View style={styles.orbitWrapper}>
+               <TaskOrbit 
+                 tasks={todayTasks} 
+                 onCompleteTask={handleTaskOrbitComplete} 
+                 onEnterTunnel={(task) => setActiveTunnelTask(task)} 
+               />
+               {/* Achievement Count Overlay */}
+               {achievementStars > 0 && (
+                 <View style={styles.constellationBadge}>
+                    <Text style={styles.constellationText}>⭐ {achievementStars} Stars in your Constellation</Text>
+                 </View>
+               )}
+            </View>
           )}
         </View>
 
@@ -796,6 +824,27 @@ const styles = StyleSheet.create({
   progressSub: { color: Colors.textMuted, fontSize: Theme.fontSize.sm, marginBottom: 12 },
   progressDots: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
   progressDot: { width: 8, height: 8, borderRadius: 4 },
+  orbitWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  constellationBadge: {
+    position: 'absolute',
+    bottom: -10,
+    backgroundColor: 'rgba(167,139,250,0.2)',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.4)',
+  },
+  constellationText: {
+    color: '#a78bfa',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
   section: { marginBottom: 20 },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   sectionTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.lg, fontWeight: Theme.fontWeight.bold },

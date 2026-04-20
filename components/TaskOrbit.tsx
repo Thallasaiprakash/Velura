@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, Text } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -9,9 +9,11 @@ import Animated, {
   withSpring,
   useAnimatedGestureHandler,
   runOnJS,
+  interpolate,
+  Extrapolate,
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
-import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
 import { Task } from '../services/taskService';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
@@ -27,9 +29,15 @@ const RADII = {
 };
 
 const SPEEDS = {
-  urgent: 15000,
-  normal: 25000,
-  low: 35000,
+  urgent: 12000,
+  normal: 20000,
+  low: 30000,
+};
+
+const PLANET_COLORS = {
+  urgent: ['#ff4d4d', '#991b1b'],
+  normal: ['#a78bfa', '#5b21b6'],
+  low: ['#94a3b8', '#334155'],
 };
 
 interface TaskOrbitProps {
@@ -44,11 +52,11 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel }: any) => 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const isDragging = useSharedValue(false);
+  const isCompleting = useSharedValue(false);
 
   useEffect(() => {
     scale.value = withSpring(1);
     const speed = SPEEDS[task.priority as keyof typeof SPEEDS] || SPEEDS.normal;
-    // Offset each planet so they don't stack
     const initialRot = (360 / total) * index;
     rotation.value = initialRot;
     
@@ -63,18 +71,29 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel }: any) => 
   }, [total, index]);
 
   const radius = RADII[task.priority as keyof typeof RADII] || RADII.normal;
-  const dotColor = task.priority === 'urgent' ? Colors.danger : task.priority === 'normal' ? Colors.primary : Colors.textMuted;
+  const colors = PLANET_COLORS[task.priority as keyof typeof PLANET_COLORS] || PLANET_COLORS.normal;
 
   const animatedStyle = useAnimatedStyle(() => {
+    if (isCompleting.value) {
+       return {
+         transform: [
+           { translateX: translateX.value },
+           { translateY: translateY.value },
+           { scale: interpolate(scale.value, [1, 0], [1, 2], Extrapolate.CLAMP) }
+         ],
+         opacity: scale.value,
+       };
+    }
+
     if (isDragging.value) {
       return {
         transform: [
           { translateX: translateX.value },
           { translateY: translateY.value },
-          { scale: 1.1 } // Grow slightly while dragging
+          { scale: 1.2 }
         ],
         position: 'absolute',
-        zIndex: 100, // bring to front
+        zIndex: 100,
       };
     }
 
@@ -82,9 +101,8 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel }: any) => 
     const x = Math.cos(rad) * radius;
     const y = Math.sin(rad) * radius;
     
-    // Smoothly spring back to orbit if released
-    translateX.value = withSpring(x, { damping: 12, stiffness: 90 });
-    translateY.value = withSpring(y, { damping: 12, stiffness: 90 });
+    translateX.value = withSpring(x, { damping: 15, stiffness: 100 });
+    translateY.value = withSpring(y, { damping: 15, stiffness: 100 });
 
     return {
       transform: [
@@ -98,8 +116,13 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel }: any) => 
   });
 
   const handleDragSubmit = () => {
+    isCompleting.value = true;
+    scale.value = withTiming(0, { duration: 500 }, (finished) => {
+      if (finished) {
+        runOnJS(onComplete)(task.id);
+      }
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    onComplete(task.id);
   };
 
   const gestureHandler = useAnimatedGestureHandler({
@@ -115,12 +138,19 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel }: any) => 
     onEnd: () => {
       const distFromCenter = Math.sqrt(translateX.value ** 2 + translateY.value ** 2);
       isDragging.value = false;
-      if (distFromCenter < 50) {
-        // Dragged to 'NOW' core
+      if (distFromCenter < 60) {
         runOnJS(handleDragSubmit)();
       }
     },
   });
+
+  const trailCoords = useMemo(() => {
+    const points = [];
+    for(let i=1; i<=10; i++) {
+        points.push(i);
+    }
+    return points;
+  }, []);
 
   return (
     <Animated.View style={animatedStyle}>
@@ -133,8 +163,25 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel }: any) => 
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               }
             }}>
-            <Animated.View style={[styles.planetNode, { borderColor: dotColor }]}>
-               <Text style={styles.planetText} numberOfLines={1}>{task.text}</Text>
+            <Animated.View style={styles.planetContainer}>
+               <Svg height={100} width={100} style={styles.planetSvg}>
+                  <Defs>
+                    <RadialGradient id={`grad-${task.id}`} cx="30%" cy="30%" r="50%">
+                      <Stop offset="0%" stopColor={colors[0]} stopOpacity="1" />
+                      <Stop offset="100%" stopColor={colors[1]} stopOpacity="1" />
+                    </RadialGradient>
+                  </Defs>
+                  <Circle cx="50" cy="50" r="14" fill={`url(#grad-${task.id})`} />
+                  {/* Subtle ring for low priority maybe? */}
+                  {task.priority === 'low' && (
+                    <G rotation="15" origin="50, 50">
+                        <Circle cx="50" cy="50" r="20" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
+                    </G>
+                  )}
+               </Svg>
+               <View style={styles.textWrapper}>
+                  <Text style={styles.planetText} numberOfLines={1}>{task.text}</Text>
+               </View>
             </Animated.View>
           </TapGestureHandler>
         </Animated.View>
@@ -155,19 +202,20 @@ export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel }: TaskOrbitPro
     <View style={styles.container}>
       <Svg height="100%" width="100%" style={styles.svgBackground}>
         <Defs>
-          <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
+          <RadialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
             <Stop offset="0%" stopColor="#fff" stopOpacity="1" />
-            <Stop offset="50%" stopColor="#fff" stopOpacity="0.4" />
+            <Stop offset="30%" stopColor="#a78bfa" stopOpacity="0.6" />
             <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
           </RadialGradient>
         </Defs>
-        {/* Draw Orbit Rings */}
-        <Circle cx="50%" cy="50%" r={RADII.urgent} stroke="rgba(255,255,255,0.05)" strokeWidth="1" fill="none" strokeDasharray="4 4" />
-        <Circle cx="50%" cy="50%" r={RADII.normal} stroke="rgba(255,255,255,0.05)" strokeWidth="1" fill="none" strokeDasharray="4 4" />
-        <Circle cx="50%" cy="50%" r={RADII.low} stroke="rgba(255,255,255,0.05)" strokeWidth="1" fill="none" strokeDasharray="4 4" />
         
-        {/* Central Black Hole (NOW) */}
-        <Circle cx="50%" cy="50%" r={40} fill="url(#glow)" />
+        {/* Orbit Rings */}
+        <Circle cx="50%" cy="50%" r={RADII.urgent} stroke="rgba(255,255,255,0.08)" strokeWidth="1" fill="none" />
+        <Circle cx="50%" cy="50%" r={RADII.normal} stroke="rgba(255,255,255,0.05)" strokeWidth="1" fill="none" />
+        <Circle cx="50%" cy="50%" r={RADII.low} stroke="rgba(255,255,255,0.03)" strokeWidth="1" fill="none" />
+        
+        {/* Core Aura */}
+        <Circle cx="50%" cy="50%" r={60} fill="url(#coreGlow)" />
       </Svg>
 
       <View style={styles.orbitCenter}>
@@ -203,38 +251,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nowCore: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    shadowColor: '#fff',
+    shadowColor: '#a78bfa',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
+    shadowOpacity: 1,
     shadowRadius: 20,
-    elevation: 10,
+    elevation: 20,
   },
   nowText: {
     color: '#000',
     fontWeight: '900',
-    fontSize: 12,
-    letterSpacing: 2,
+    fontSize: 10,
+    letterSpacing: 1.5,
   },
-  planetNode: {
-    width: 80,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(20,20,25,0.9)',
-    borderWidth: 1.5,
+  planetContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  planetSvg: {
+    position: 'absolute',
+  },
+  textWrapper: {
+    marginTop: 45, // Position text below the sphere
+    backgroundColor: 'rgba(0,0,0,0.5)',
     paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   planetText: {
     color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: 9,
+    fontWeight: '700',
+    maxWidth: 70,
   }
 });
+
