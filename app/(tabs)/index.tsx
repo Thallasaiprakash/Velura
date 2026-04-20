@@ -20,9 +20,10 @@ import { useTasks } from '../../hooks/useTasks';
 import { useVoice } from '../../hooks/useVoice';
 import { useAuth } from '../../hooks/useAuth';
 import { loadStreakData, updateStreak, StreakData } from '../../hooks/useStreak';
-import { TaskRow } from '../../components/TaskRow';
 import { ProgressRing } from '../../components/ProgressRing';
 import { StreakBadge } from '../../components/StreakBadge';
+import { TaskOrbit } from '../../components/TaskOrbit';
+import { FlowTunnelModal } from '../../components/FlowTunnelModal';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
 import { buildGreeting } from '../../services/speechService';
@@ -32,9 +33,8 @@ import { requestNotificationPermissions, isTaskDueNow } from '../../services/not
 import { getSuggestions } from '../../services/suggestionService';
 import { deconstructTask } from '../../services/aiService';
 import { getCurrentEnergyState, getEnergyDescription } from '../../services/auraService';
+import { parseNeuralVenting, NeuralVentedTask } from '../../services/aiService';
 import * as Haptics from 'expo-haptics';
-
-
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
 import Svg, { Ellipse, Circle } from 'react-native-svg';
@@ -79,7 +79,12 @@ export default function HomeScreen() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showChronotypeModal, setShowChronotypeModal] = useState(false);
   const [isDeconstructing, setIsDeconstructing] = useState(false);
-
+  const [activeTunnelTask, setActiveTunnelTask] = useState<Task | null>(null);
+  
+  // Neural Vent State
+  const [showVentModal, setShowVentModal] = useState(false);
+  const [ventText, setVentText] = useState('');
+  const [isVenting, setIsVenting] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -429,6 +434,35 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [reload]);
 
+  const handleNeuralVent = async () => {
+    if (!ventText.trim()) return;
+    setIsVenting(true);
+    try {
+      const parsedTasks = await parseNeuralVenting(ventText);
+      for (const t of parsedTasks) {
+        // High priority = urgent in our system
+        const mappedPriority = t.priority === 'High' ? 'urgent' : t.priority === 'Medium' ? 'normal' : 'low';
+        await addTask(todayKey, t.text, mappedPriority);
+      }
+      setNotifyTitle('Neural Vent Processed ✨');
+      setNotifySubtitle(`Extracted ${parsedTasks.length} tasks from your thoughts.`);
+      setNotifyAction('Speak');
+      setShowInAppNotify(true);
+      setTimeout(() => setShowInAppNotify(false), 3000);
+      setVentText('');
+      setShowVentModal(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (e: any) {
+      console.error(e);
+      setNotifyTitle('Venting Failed');
+      setNotifySubtitle('The AI could not process your thoughts right now.');
+      setShowInAppNotify(true);
+      setTimeout(() => setShowInAppNotify(false), 3000);
+    } finally {
+      setIsVenting(false);
+    }
+  };
+
   const completedCount = todayTasks.filter((t) => t.completed).length;
 
   return (
@@ -517,11 +551,10 @@ export default function HomeScreen() {
             <StreakBadge count={streakData.count} badge={streakData.badge} />
           </View>
         )}
-
-        {/* Today's Tasks */}
+        {/* Orbit Interface UI */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Tasks</Text>
+            <Text style={styles.sectionTitle}>Task Orbit</Text>
             <Text style={styles.sectionMeta}>{completedCount}/{todayTasks.length} done</Text>
           </View>
           {loading && todayTasks.length === 0 ? (
@@ -534,28 +567,19 @@ export default function HomeScreen() {
                 <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />
                </Svg>
                <Text style={[styles.emptyText, { marginTop: 16 }]}>Consulting the Oracle...</Text>
-               <Text style={styles.emptySubText}>Breaking down your task into 5-minute atomic chunks.</Text>
+               <Text style={styles.emptySubText}>Breaking down your task into atomic chunks.</Text>
             </View>
-          ) : todayTasks.length === 0 ? (
+          ) : todayTasks.filter((t) => !t.completed).length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No tasks for today ✨</Text>
-              <Text style={styles.emptySubText}>Tap "Add task" below to get started</Text>
+              <Text style={styles.emptyText}>No pending tasks ✨</Text>
+              <Text style={styles.emptySubText}>You are clear to rest.</Text>
             </View>
           ) : (
-            <View style={styles.taskList}>
-              {/* Urgent first */}
-              {todayTasks
-                .filter((t) => t.priority === 'urgent' && !t.completed)
-                .map((t) => (
-                  <TaskRow key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onDeconstruct={handleDeconstruct} isAuraMatched={t.energyLevel === currentEnergy} />
-                ))}
-              {/* Normal tasks */}
-              {todayTasks
-                .filter((t) => t.priority !== 'urgent' || t.completed)
-                .map((t) => (
-                  <TaskRow key={t.id} task={t} onToggle={handleToggle} onDelete={handleDelete} onDeconstruct={handleDeconstruct} isAuraMatched={t.energyLevel === currentEnergy} />
-                ))}
-            </View>
+            <TaskOrbit 
+              tasks={todayTasks} 
+              onCompleteTask={handleToggle} 
+              onEnterTunnel={(task) => setActiveTunnelTask(task)} 
+            />
           )}
         </View>
 
@@ -600,6 +624,16 @@ export default function HomeScreen() {
           >
             <Text style={styles.actionIcon}>+</Text>
             <Text style={[styles.actionText, { color: '#fff' }]}>Add task</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={[styles.quickActions, { marginTop: 12 }]}>
+          <TouchableOpacity
+            style={[styles.actionBtn, { backgroundColor: 'rgba(167,139,250,0.15)', borderColor: Colors.primary }]}
+            onPress={() => setShowVentModal(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.actionIcon}>🎤</Text>
+            <Text style={[styles.actionText, { color: Colors.primary }]}>Neural Vent</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -701,6 +735,47 @@ export default function HomeScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Neural Vent Modal */}
+      <Modal visible={showVentModal} transparent animationType="slide" onRequestClose={() => setShowVentModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Neural Vent 🧠</Text>
+            <Text style={[styles.emptySubText, { marginBottom: 16, textAlign: 'left' }]}>
+              Dump your chaotic thoughts, anxieties, and scattered to-dos. The AI will extract and structure actionable tasks for you.
+            </Text>
+            <TextInput
+              style={[styles.modalInput, { height: 120, textAlignVertical: 'top' }]}
+              value={ventText}
+              onChangeText={setVentText}
+              placeholder="E.g., I'm so stressed about the tax forms, also need to mail the package today, and oh I should probably call mom..."
+              placeholderTextColor={Colors.textUltraMuted}
+              multiline
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowVentModal(false)} disabled={isVenting}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.addModalBtn} onPress={handleNeuralVent} disabled={isVenting}>
+                <Text style={styles.addModalText}>{isVenting ? 'Processing...' : 'Deconstruct Thoughts'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Flow Tunnel Modal */}
+      <FlowTunnelModal 
+        visible={!!activeTunnelTask} 
+        task={activeTunnelTask} 
+        onClose={(completed) => {
+          if (completed && activeTunnelTask) {
+            handleToggle(activeTunnelTask.id);
+          }
+          setActiveTunnelTask(null);
+        }} 
+      />
     </View>
   );
 }

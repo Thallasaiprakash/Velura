@@ -52,3 +52,56 @@ Format: [{"text": "subtask description", "timeTag": "5m"}, ... ]
     throw error;
   }
 }
+
+export interface NeuralVentedTask {
+  text: string;
+  priority: 'High' | 'Medium' | 'Low';
+  energyCost: 'High' | 'Low'; // Guessed from tone
+}
+
+export async function parseNeuralVenting(ventText: string): Promise<NeuralVentedTask[]> {
+  if (!OPENAI_API_KEY || OPENAI_API_KEY === 'YOUR_OPENAI_API_KEY_HERE') {
+    throw new Error('OpenAI API Key is missing. Please add it to your .env file.');
+  }
+
+  const VENT_SYSTEM_PROMPT = `You are the VELURA Neural Engine. The user is doing a "Neural Vent" - dumping their chaotic thoughts, anxieties, and scattered to-dos in raw stream-of-consciousness.
+Your job is to extract actionable tasks from this emotional dump. 
+For each task, infer:
+1. priority ('High', 'Medium', 'Low') based on urgency/stress in their words.
+2. energyCost ('High', 'Low') based on how draining the task sounds.
+
+Respond ONLY with a valid JSON array of objects. Format: [{"text": "clean task description", "priority": "High", "energyCost": "High"}, ... ]`;
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: VENT_SYSTEM_PROMPT },
+          { role: 'user', content: ventText }
+        ],
+        temperature: 0.5,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Failed to fetch from OpenAI');
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content.trim();
+    
+    // Attempt to parse JSON
+    const parsedTasks: NeuralVentedTask[] = JSON.parse(content);
+    return parsedTasks;
+  } catch (error) {
+    console.error('[aiService] Neural Venting Parse Failed:', error);
+    throw error;
+  }
+}
