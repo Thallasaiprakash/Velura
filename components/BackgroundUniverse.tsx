@@ -6,7 +6,8 @@ import Animated, {
   withTiming, 
   useSharedValue, 
   withDelay, 
-  Easing 
+  Easing,
+  withSpring 
 } from 'react-native-reanimated';
 import Svg, { Circle, Rect, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { Colors } from '../constants/colors';
@@ -121,19 +122,21 @@ export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 
 
   React.useEffect(() => {
     const duration = energyState === 'force' ? 2000 : energyState === 'flow' ? 4000 : 7000;
+    const baseOpacity = 0.4 + (achievementCount * 0.05); // More stars = more nebula vibrancy
+    const peakOpacity = Math.min(0.85, 0.65 + (achievementCount * 0.05));
     
     nebulaOpacity.value = withRepeat(
-      withTiming(0.6, { duration, easing: Easing.inOut(Easing.ease) }),
+      withTiming(peakOpacity, { duration, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
     
     nebulaScale.value = withRepeat(
-      withTiming(1.15, { duration: duration * 1.5, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1.25, { duration: duration * 1.5, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
-  }, [energyState]);
+  }, [energyState, achievementCount]);
 
 
   const nebulaColor = useMemo(() => {
@@ -161,11 +164,11 @@ export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 
         <Svg height="100%" width="100%">
           <Defs>
             <RadialGradient id="nebula1" cx="20%" cy="30%" r="50%">
-              <Stop offset="0%" stopColor={nebulaColor} stopOpacity="0.2" />
+              <Stop offset="0%" stopColor={nebulaColor} stopOpacity="0.4" />
               <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
             </RadialGradient>
             <RadialGradient id="nebula2" cx="80%" cy="70%" r="50%">
-              <Stop offset="0%" stopColor={energyState === 'force' ? '#f59e0b' : '#3b82f6'} stopOpacity="0.15" />
+              <Stop offset="0%" stopColor={energyState === 'force' ? '#f59e0b' : '#3b82f6'} stopOpacity="0.3" />
               <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
             </RadialGradient>
           </Defs>

@@ -16,15 +16,27 @@ function extractJSON<T>(content: string): T {
     // Attempt direct parse first
     return JSON.parse(content);
   } catch (e) {
-    // Look for JSON block patterns: ```json ... ``` or just [ ... ] or { ... }
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || content.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
-    if (jsonMatch) {
+    // Look for JSON block patterns: ```json ... ```
+    const mdMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (mdMatch) {
       try {
-        return JSON.parse(jsonMatch[1]);
+        return JSON.parse(mdMatch[1]);
       } catch (innerError) {
-        console.error('[aiService] Failed to parse extracted JSON:', innerError);
+        console.error('[aiService] Failed to parse markdown JSON:', innerError);
       }
     }
+
+    // Look for generic JSON structure: [ ... ] or { ... }
+    const genericMatch = content.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+    if (genericMatch) {
+      try {
+        // match[0] is the whole capture when using .match() without global flag
+        return JSON.parse(genericMatch[0]);
+      } catch (innerError) {
+        console.error('[aiService] Failed to parse generic JSON:', innerError);
+      }
+    }
+    
     throw new Error('Could not parse AI response as valid data.');
   }
 }
@@ -119,7 +131,11 @@ Respond ONLY with a valid JSON array of objects. Format: [{"text": "clean task d
     return extractJSON<NeuralVentedTask[]>(content);
   } catch (error: any) {
     console.error('[aiService] Neural Venting Parse Failed:', error);
-    throw new Error(error.message || 'The Neural Engine could not decode your thoughts just yet.');
+    let errorMsg = error.message || 'The Neural Engine could not decode your thoughts just yet.';
+    if (errorMsg.includes('401') || errorMsg.includes('key')) {
+      errorMsg = 'Neural Engine authentication failed. Please check your AI API key.';
+    }
+    throw new Error(errorMsg);
   }
 }
 

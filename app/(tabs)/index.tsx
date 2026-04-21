@@ -23,7 +23,6 @@ import { loadStreakData, updateStreak, StreakData } from '../../hooks/useStreak'
 import { ProgressRing } from '../../components/ProgressRing';
 import { StreakBadge } from '../../components/StreakBadge';
 import { TaskOrbit } from '../../components/TaskOrbit';
-import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 import { FlowTunnelModal } from '../../components/FlowTunnelModal';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
@@ -461,11 +460,18 @@ export default function HomeScreen() {
       setShowVentModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      console.error(e);
-      setNotifyTitle('Venting Failed');
-      setNotifySubtitle('The AI could not process your thoughts right now.');
+      console.error('[NeuralVent]', e);
+      let errorMsg = e.message || 'The Neural Engine could not decode your thoughts just yet.';
+      
+      // Specific check for placeholder key
+      if (errorMsg.includes('API Key Missing') || errorMsg.includes('YOUR_OPENAI_API_KEY_HERE')) {
+        errorMsg = 'AI Configuration Required: Please update your OpenAI API Key in the settings or .env file to enable Neural Venting.';
+      }
+
+      setNotifyTitle('Neural Sync Interrupted');
+      setNotifySubtitle(errorMsg);
       setShowInAppNotify(true);
-      setTimeout(() => setShowInAppNotify(false), 3000);
+      setTimeout(() => setShowInAppNotify(false), 6000); 
     } finally {
       setIsVenting(false);
     }
@@ -484,11 +490,6 @@ export default function HomeScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <BackgroundUniverse 
-        energyState={currentEnergy as any} 
-        achievementCount={achievementStars}
-      />
-
       <ElegantNotification
         visible={showInAppNotify}
         title={notifyTitle}
@@ -600,6 +601,8 @@ export default function HomeScreen() {
                  tasks={todayTasks} 
                  onCompleteTask={handleTaskOrbitComplete} 
                  onEnterTunnel={(task) => setActiveTunnelTask(task)} 
+                 chronotype={userProfile?.chronotype as Chronotype}
+                 achievementStars={achievementStars}
                />
                {/* Achievement Count Overlay */}
                {achievementStars > 0 && (
@@ -669,7 +672,7 @@ export default function HomeScreen() {
       {/* Bio-Calibration Modal */}
       <Modal visible={showChronotypeModal} transparent animationType="fade" onRequestClose={() => {}}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { paddingBottom: 30 }]}>
+          <BlurView intensity={80} tint="dark" style={[styles.modalSheet, { paddingBottom: 30 }]}>
             <Text style={{ fontSize: 24, marginBottom: 10 }}>🧬</Text>
             <Text style={styles.modalTitle}>Bio-Calibration</Text>
             <Text style={[styles.emptySubText, { marginBottom: 24, textAlign: 'left' }]}>
@@ -701,14 +704,14 @@ export default function HomeScreen() {
                 </View>
               </TouchableOpacity>
             </View>
-          </View>
+          </BlurView>
         </View>
       </Modal>
 
       {/* Add Task Modal */}
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <BlurView intensity={80} tint="dark" style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Add Task for Today</Text>
             <TextInput
               style={styles.modalInput}
@@ -767,7 +770,7 @@ export default function HomeScreen() {
       {/* Neural Vent Modal */}
       <Modal visible={showVentModal} transparent animationType="slide" onRequestClose={() => setShowVentModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <BlurView intensity={80} tint="dark" style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Neural Vent 🧠</Text>
             <Text style={[styles.emptySubText, { marginBottom: 16, textAlign: 'left' }]}>
               Dump your chaotic thoughts, anxieties, and scattered to-dos. The AI will extract and structure actionable tasks for you.
@@ -809,7 +812,7 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgPrimary },
+  container: { flex: 1, backgroundColor: 'transparent' },
   content: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 32 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 },
   greetingText: { color: Colors.textPrimary, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold },
@@ -818,7 +821,18 @@ const styles = StyleSheet.create({
   auraBadgeText: { color: Colors.primary, fontSize: Theme.fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   auraContainer: { position: 'relative', width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   auraGlow: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.2, filter: 'blur(10px)' as any }, // Simulate glow
-  progressCard: { backgroundColor: Colors.bgSurface, borderRadius: Theme.radius.lg, padding: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: 'rgba(167,139,250,0.15)', marginBottom: 16 },
+  progressCard: { 
+    backgroundColor: 'rgba(255, 255, 255, 0.03)', 
+    borderRadius: Theme.radius.lg, 
+    padding: 20, 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    borderWidth: 1, 
+    borderColor: 'rgba(167, 139, 250, 0.1)', 
+    marginBottom: 16,
+    backdropFilter: 'blur(10px)', // For platforms that support it
+  },
   progressLeft: { flex: 1, marginRight: 12 },
   progressTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold, marginBottom: 4 },
   progressSub: { color: Colors.textMuted, fontSize: Theme.fontSize.sm, marginBottom: 12 },

@@ -11,6 +11,8 @@ import {
   StatusBar,
   Modal,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useVoice } from '../../hooks/useVoice';
@@ -22,6 +24,7 @@ import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
+import { Chronotype } from '../../services/taskService';
 
 const GREETING_TIME_KEY = 'velura_greeting_time';
 const SMART_SILENCE_KEY = 'velura_smart_silence';
@@ -32,6 +35,13 @@ const VOICE_OPTIONS: { style: VoiceStyle; emoji: string; label: string }[] = [
   { style: 'energetic', emoji: '⚡', label: 'Energetic' },
   { style: 'formal', emoji: '👔', label: 'Formal' },
   { style: 'gentleman', emoji: '🎩', label: 'Gentleman' },
+];
+
+const CHRONOTYPE_OPTIONS: { type: Chronotype; emoji: string; label: string; desc: string }[] = [
+  { type: 'lion', emoji: '🦁', label: 'Lion', desc: 'Early riser, peak energy at dawn.' },
+  { type: 'bear', emoji: '🐻', label: 'Bear', desc: 'Solar cycle sync, peak mid-morning.' },
+  { type: 'wolf', emoji: '🐺', label: 'Wolf', desc: 'Night owl, peak energy in evening.' },
+  { type: 'third-bird', emoji: '🐦', label: 'Third Bird', desc: 'Balanced, flexible daily rhythm.' },
 ];
 
 
@@ -69,6 +79,7 @@ export default function SettingsScreen() {
   const [bedtimeSummary, setBedtimeSummary] = useState(true);
   const [voiceNotificationPreference, setVoiceNotificationPreference] = useState<'priority' | 'all'>('priority');
   const [selectedAvatar, setSelectedAvatar] = useState(0);
+  const [chronotype, setChronotype] = useState<Chronotype>('bear');
 
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempHour, setTempHour] = useState('7');
@@ -108,6 +119,11 @@ export default function SettingsScreen() {
     if (morning) setMorningGreeting(morning !== 'false');
     if (bedtime) setBedtimeSummary(bedtime !== 'false');
     if (voicePref) setVoiceNotificationPreference(voicePref as 'priority' | 'all');
+    
+    const [savedChronotype] = await Promise.all([
+      AsyncStorage.getItem('velura_chronotype'),
+    ]);
+    if (savedChronotype) setChronotype(savedChronotype as Chronotype);
   };
 
 
@@ -167,6 +183,11 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem('velura_voice_notification_preference', pref);
   };
 
+  const saveChronotype = async (type: Chronotype) => {
+    setChronotype(type);
+    await AsyncStorage.setItem('velura_chronotype', type);
+  };
+
 
   const formatTime = () => {
     const ampm = greetingHour >= 12 ? 'PM' : 'AM';
@@ -176,13 +197,17 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.bgPrimary} />
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <BackgroundUniverse energyState="fade" />
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.pageTitle}>Settings</Text>
+        <BlurView intensity={20} tint="dark" style={styles.headerBlur}>
+          <Text style={styles.pageTitle}>Settings</Text>
+        </BlurView>
 
         {/* Profile */}
         <SectionHeader title="Profile" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           {/* Avatar */}
           <View style={styles.avatarRow}>
             {AVATAR_EMOJIS.map((emoji, i) => (
@@ -219,11 +244,11 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             )}
           </SettingsRow>
-        </View>
+        </BlurView>
 
         {/* Voice */}
         <SectionHeader title="Voice" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           <View style={styles.voiceGrid}>
             {VOICE_OPTIONS.map((opt) => (
               <TouchableOpacity
@@ -242,11 +267,33 @@ export default function SettingsScreen() {
           <TouchableOpacity style={styles.testVoiceBtn} onPress={() => preview(voiceStyle)} activeOpacity={0.8}>
             <Text style={styles.testVoiceText}>▶ Test voice</Text>
           </TouchableOpacity>
-        </View>
+        </BlurView>
+
+        {/* Bio-Sync (Chronotype) */}
+        <SectionHeader title="Quantum Chrono-Sync" />
+        <BlurView intensity={20} tint="dark" style={styles.card}>
+          <Text style={styles.settingsHelp}>
+            Synchronize your schedule with your biological energy peaks and dips.
+          </Text>
+          {CHRONOTYPE_OPTIONS.map((opt) => (
+            <TouchableOpacity
+              key={opt.type}
+              style={[styles.prefOption, chronotype === opt.type && styles.prefOptionActive]}
+              onPress={() => saveChronotype(opt.type)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.prefHeader}>
+                <Text style={styles.prefTitle}>{opt.emoji} {opt.label}</Text>
+                {chronotype === opt.type && <Text style={styles.prefCheck}>✓</Text>}
+              </View>
+              <Text style={styles.prefDescription}>{opt.desc}</Text>
+            </TouchableOpacity>
+          ))}
+        </BlurView>
 
         {/* Voice Announcement Mode */}
         <SectionHeader title="Voice Announcement Mode" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           <TouchableOpacity 
             style={[styles.prefOption, voiceNotificationPreference === 'priority' && styles.prefOptionActive]} 
             onPress={() => toggleVoicePreference('priority')}
@@ -272,11 +319,11 @@ export default function SettingsScreen() {
             </View>
             <Text style={styles.prefDescription}>Every task with a time tag will be announced.</Text>
           </TouchableOpacity>
-        </View>
+        </BlurView>
 
         {/* Greeting */}
         <SectionHeader title="Morning Greeting" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           <SettingsRow label="Greeting Time">
             <TouchableOpacity style={styles.timeBtn} onPress={() => setShowTimePicker(true)} activeOpacity={0.7}>
               <Text style={styles.timeBtnText}>{formatTime()}</Text>
@@ -297,11 +344,11 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+        </BlurView>
 
         {/* Automation */}
         <SectionHeader title="Automation" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           <SettingsRow label="Notify on Unlock">
             <Switch
               value={notifyOnUnlock}
@@ -345,7 +392,7 @@ export default function SettingsScreen() {
 
         {/* Behaviour */}
         <SectionHeader title="Behaviour" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           <SettingsRow label="Smart Silence">
             <Switch
               value={smartSilence}
@@ -357,18 +404,18 @@ export default function SettingsScreen() {
           <Text style={styles.settingsHelp}>
             When all tasks are done, skip the morning greeting entirely.
           </Text>
-        </View>
+        </BlurView>
 
 
         {/* About */}
         <SectionHeader title="About" />
-        <View style={styles.card}>
+        <BlurView intensity={20} tint="dark" style={styles.card}>
           <Text style={styles.aboutText}>VELURA v1.0.0</Text>
           <Text style={styles.aboutSub}>Your day, spoken the moment you awaken your screen.</Text>
           <Text style={[styles.aboutSub, { marginTop: 8 }]}>
             Built with ❤️ using Expo + React Native
           </Text>
-        </View>
+        </BlurView>
       </ScrollView>
 
       {/* Time picker modal */}
@@ -411,11 +458,46 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.bgPrimary },
-  content: { paddingHorizontal: 20, paddingTop: 56, paddingBottom: 40 },
-  pageTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.xl, fontWeight: Theme.fontWeight.bold, marginBottom: 24 },
-  sectionHeader: { color: Colors.textUltraMuted, fontSize: Theme.fontSize.xs, fontWeight: Theme.fontWeight.bold, letterSpacing: Theme.letterSpacing.wider, marginTop: 24, marginBottom: 8, textTransform: 'uppercase' },
-  card: { backgroundColor: Colors.bgSurface, borderRadius: Theme.radius.lg, padding: 16, borderWidth: 1, borderColor: 'rgba(167,139,250,0.1)', gap: 12 },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  content: { paddingBottom: 40 },
+  headerBlur: { 
+    paddingTop: 56, 
+    paddingHorizontal: 20, 
+    paddingBottom: 24, 
+    borderBottomWidth: 1.5, 
+    borderBottomColor: 'rgba(167, 139, 250, 0.2)', 
+    marginBottom: 12 
+  },
+  pageTitle: { 
+    color: Colors.textPrimary, 
+    fontSize: 28, 
+    fontWeight: '800', 
+    letterSpacing: -0.5 
+  },
+  sectionHeader: { 
+    color: 'rgba(167, 139, 250, 0.7)', 
+    fontSize: 11, 
+    fontWeight: '700', 
+    letterSpacing: 2, 
+    marginTop: 26, 
+    marginBottom: 10, 
+    textTransform: 'uppercase', 
+    paddingHorizontal: 20 
+  },
+  card: { 
+    marginHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)', 
+    borderRadius: 24, 
+    padding: 24, 
+    borderWidth: 2, 
+    borderColor: 'rgba(167, 139, 250, 0.25)', 
+    shadowColor: '#a78bfa',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 30,
+    elevation: 5,
+    overflow: 'hidden',
+  },
   divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.05)', marginVertical: 4 },
   settingsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 

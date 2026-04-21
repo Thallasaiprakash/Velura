@@ -17,7 +17,7 @@ import { db } from './firebase';
 export type VoiceStyle = 'calm' | 'energetic' | 'formal' | 'gentleman';
 export type TaskPriority = 'urgent' | 'normal' | 'low';
 export type EnergyLevel = 'force' | 'flow' | 'fade';
-export type Chronotype = 'lark' | 'owl' | 'third-bird';
+export type Chronotype = 'lark' | 'owl' | 'third-bird' | 'lion' | 'bear' | 'wolf';
 
 export interface Task {
   id: string;

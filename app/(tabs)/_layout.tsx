@@ -1,7 +1,11 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, View, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/colors';
+import { BackgroundUniverse } from '../../components/BackgroundUniverse';
+import { getCurrentEnergyState } from '../../services/auraService';
+import { Chronotype } from '../../services/taskService';
 import Svg, { Ellipse, Circle, Path, Rect } from 'react-native-svg';
 
 function HomeIcon({ color, size }: { color: string; size: number }) {
@@ -32,49 +36,85 @@ function SettingsIcon({ color, size }: { color: string; size: number }) {
   );
 }
 
+
 export default function TabLayout() {
+  const [achievementStars, setAchievementStars] = React.useState(0);
+  const [chronotype, setChronotype] = React.useState<Chronotype>('third-bird');
+
+  React.useEffect(() => {
+    const loadUniverseData = async () => {
+      const [stars, ct] = await Promise.all([
+        AsyncStorage.getItem('velura_session_stars'),
+        AsyncStorage.getItem('velura_chronotype'),
+      ]);
+      if (stars) setAchievementStars(parseInt(stars));
+      if (ct) setChronotype(ct as Chronotype);
+    };
+
+    loadUniverseData();
+    // Refresh periodically or on focus if possible
+    const interval = setInterval(loadUniverseData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const energyState = getCurrentEnergyState(chronotype);
+
   return (
-    <Tabs
-      screenOptions={{
-        tabBarStyle: {
-          backgroundColor: Colors.bgSecondary,
-          borderTopColor: 'rgba(167,139,250,0.1)',
-          borderTopWidth: 1,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
-          paddingTop: 8,
-          height: Platform.OS === 'ios' ? 80 : 60,
-        },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textUltraMuted,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          marginTop: 2,
-        },
-        headerShown: false,
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Today',
-          tabBarIcon: ({ color, size }) => <HomeIcon color={color} size={size - 2} />,
-        }}
+    <View style={styles.container}>
+      <BackgroundUniverse 
+        energyState={energyState as any} 
+        achievementCount={achievementStars} 
       />
-      <Tabs.Screen
-        name="planner"
-        options={{
-          title: 'Planner',
-          tabBarIcon: ({ color, size }) => <PlannerIcon color={color} size={size - 2} />,
+      
+      <Tabs
+        screenOptions={{
+          tabBarStyle: {
+            backgroundColor: 'rgba(7, 7, 26, 0.85)', // Glassmorphic translucent tab bar
+            borderTopColor: 'rgba(167,139,250,0.1)',
+            borderTopWidth: 1,
+            paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+            paddingTop: 8,
+            height: Platform.OS === 'ios' ? 80 : 60,
+            position: 'absolute', // Make it float for glass effect
+            elevation: 0,
+          },
+          tabBarActiveTintColor: Colors.primary,
+          tabBarInactiveTintColor: Colors.textUltraMuted,
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: '500',
+            marginTop: 2,
+          },
+          headerShown: false,
         }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => <SettingsIcon color={color} size={size - 2} />,
-        }}
-      />
-    </Tabs>
+        sceneContainerStyle={{ backgroundColor: 'transparent' }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Today',
+            tabBarIcon: ({ color, size }) => <HomeIcon color={color} size={size - 2} />,
+          }}
+        />
+        <Tabs.Screen
+          name="planner"
+          options={{
+            title: 'Planner',
+            tabBarIcon: ({ color, size }) => <PlannerIcon color={color} size={size - 2} />,
+          }}
+        />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+            tabBarIcon: ({ color, size }) => <SettingsIcon color={color} size={size - 2} />,
+          }}
+        />
+      </Tabs>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#050508' },
+});

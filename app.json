@@ -3,6 +3,12 @@
     "name": "VELURA",
     "slug": "velura",
     "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/1638ed56-4c46-4702-b710-5bb83c892916"
+    },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -59,7 +65,8 @@
           }
         }
       ],
-      "./plugins/android-unlock-plugin"
+      "./plugins/android-unlock-plugin",
+      "expo-updates"
     ],
     "experiments": {
       "typedRoutes": true
