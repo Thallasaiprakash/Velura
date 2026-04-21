@@ -35,8 +35,15 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EAS_TOKEN }}
 
+      - name: 🧹 Cleanup disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
       - name: 📦 Install dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: 🛠 Build APK (EAS Local)
         env:
@@ -44,7 +51,8 @@ jobs:
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           # Firebase and other keys can be added here
         run: |
-          npx eas-cli build --platform android --profile preview --local --non-interactive
+          npx eas-cli build --platform android --profile preview --local --non-interactive || \
+          (sleep 30 && npx eas-cli build --platform android --profile preview --local --non-interactive)
           # Automatically find and rename the apk for easier download
           find . -maxdepth 1 -name "*.apk" -exec mv {} build.apk \;
 
