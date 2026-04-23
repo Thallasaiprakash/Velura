@@ -2,6 +2,7 @@ import * as Speech from 'expo-speech';
 import { Audio } from 'expo-av';
 import { getDailyQuote } from '../constants/quotes';
 import { Task, UserProfile, VoiceStyle } from './taskService';
+export { VoiceStyle };
 
 export type BadgeLevel = 'bronze' | 'silver' | 'gold' | null;
 

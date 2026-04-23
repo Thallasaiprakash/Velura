@@ -39,7 +39,7 @@ export function TaskRow({ task, onToggle, onDelete, onDeconstruct, isAuraMatched
 
   const isBioDip = React.useMemo(() => {
     if (!task.timeTag || !chronotype) return false;
-    return isTimeInBioDip(task.timeTag, chronotype);
+    return isTimeInBioDip(chronotype, task.timeTag);
   }, [task.timeTag, chronotype]);
 
   const isMatched = React.useMemo(() => {

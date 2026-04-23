@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   description: {
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 20,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   cardText: {
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     lineHeight: 18,
     marginBottom: 12,
   },
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   closeButtonText: {
-    color: Colors.textSecondary,
+    color: Colors.textMuted,
     fontSize: 14,
   }
 });

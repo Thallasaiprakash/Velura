@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getWeekId, saveWeekTasks, DayKey, Task, createTask, EMPTY_WEEK } from '../../services/taskService';
+import { getWeekId, saveWeekTasks, DayKey, Task, createTask, getEmptyWeek, WeekData } from '../../services/taskService';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
 import { USERNAME_KEY } from './step-name';
@@ -74,9 +74,10 @@ export default function StepFirstWeek() {
     if (!userId) return;
 
     const weekId = getWeekId();
-    const weekData = {
+    const weekData: WeekData = {
       weekOf: Date.now(),
       days: dayTasks,
+      updatedAt: Date.now(),
     };
     await saveWeekTasks(userId, weekId, weekData);
 

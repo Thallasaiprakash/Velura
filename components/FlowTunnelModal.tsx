@@ -137,10 +137,9 @@ const styles = StyleSheet.create({
     height: width * 0.8,
     borderRadius: width * 0.4,
     backgroundColor: Colors.primary,
-    filter: 'blur(30px)' as any,
   },
   tunnelText: {
-    color: Colors.textUltraMuted,
+    color: Colors.textMuted,
     letterSpacing: 6,
     fontSize: 10,
     fontWeight: '800',

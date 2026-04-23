@@ -12,6 +12,7 @@ import Animated, {
   interpolate,
   Extrapolate,
   withDelay,
+  withSequence,
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
@@ -78,7 +79,7 @@ const StarShower = ({ color }: { color: string }) => {
   return <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>{particles}</View>;
 };
 
-const OrbitalDust = ({ radius, count }: { radius: number; count: number }) => {
+const OrbitalDust = ({ radius, count, color }: { radius: number; count: number; color?: string }) => {
   const particles = Array.from({ length: count }).map((_, i) => {
     const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
     const opacity = useSharedValue(Math.random() * 0.5 + 0.1);
@@ -98,7 +99,7 @@ const OrbitalDust = ({ radius, count }: { radius: number; count: number }) => {
       width: 2,
       height: 2,
       borderRadius: 1,
-      backgroundColor: '#fff',
+      backgroundColor: color || '#fff',
       opacity: opacity.value,
       transform: [
         { translateX: Math.cos(angle) * (radius + (Math.random() * 10 - 5)) },
@@ -351,9 +352,9 @@ export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel, chronotype, ac
   return (
     <View style={styles.container}>
       {/* Dynamic Background Dust */}
-      <OrbitalDust radius={RADII.urgent} color={Colors.urgent} />
-      <OrbitalDust radius={RADII.normal} color={Colors.primary} />
-      <OrbitalDust radius={RADII.low} color={Colors.low} />
+      <OrbitalDust radius={RADII.urgent} count={12} color={Colors.urgent} />
+      <OrbitalDust radius={RADII.normal} count={16} color={Colors.primary} />
+      <OrbitalDust radius={RADII.low} count={20} color={Colors.low} />
 
       <View style={styles.orbitCenter}>
          {/* Pulsing Core Aura */}

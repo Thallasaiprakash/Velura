@@ -13,7 +13,7 @@ import {
   Platform,
   AppState,
 } from 'react-native';
-
+import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useTasks } from '../../hooks/useTasks';
@@ -62,8 +62,6 @@ export default function HomeScreen() {
   const { todayTasks, todayKey, allTodayDone, toggleTask, addTask, deleteTask, loading, syncing, reload, carryForwardTasks } = useTasks();
 
   const { speak, speaking } = useVoice();
-  const currentEnergy = getCurrentEnergyState(userProfile?.chronotype);
-
   const [userName, setUserName] = useState('');
   const [voiceStyle, setVoiceStyle] = useState<VoiceStyle>('calm');
   const [streakData, setStreakData] = useState<StreakData>({ count: 0, lastCompletedDate: null, badge: null });
@@ -75,6 +73,7 @@ export default function HomeScreen() {
   const [notifyTitle, setNotifyTitle] = useState('');
   const [notifySubtitle, setNotifySubtitle] = useState('');
   const [userProfile, setUserProfile] = useState<Partial<UserProfile> | null>(null);
+  const currentEnergy = getCurrentEnergyState(userProfile?.chronotype);
   const [lastAlertedTime, setLastAlertedTime] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showChronotypeModal, setShowChronotypeModal] = useState(false);
@@ -792,7 +791,7 @@ export default function HomeScreen() {
                 <Text style={styles.addModalText}>{isVenting ? 'Processing...' : 'Deconstruct Thoughts'}</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </BlurView>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -820,7 +819,7 @@ const styles = StyleSheet.create({
   auraBadge: { backgroundColor: 'rgba(167,139,250,0.1)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.3)', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Theme.radius.md, marginTop: 6 },
   auraBadgeText: { color: Colors.primary, fontSize: Theme.fontSize.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   auraContainer: { position: 'relative', width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  auraGlow: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.2, filter: 'blur(10px)' as any }, // Simulate glow
+  auraGlow: { position: 'absolute', width: 40, height: 40, borderRadius: 20, opacity: 0.2 }, // Simulate glow
   progressCard: { 
     backgroundColor: 'rgba(255, 255, 255, 0.03)', 
     borderRadius: Theme.radius.lg, 
@@ -831,7 +830,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, 
     borderColor: 'rgba(167, 139, 250, 0.1)', 
     marginBottom: 16,
-    backdropFilter: 'blur(10px)', // For platforms that support it
   },
   progressLeft: { flex: 1, marginRight: 12 },
   progressTitle: { color: Colors.textPrimary, fontSize: Theme.fontSize.md, fontWeight: Theme.fontWeight.bold, marginBottom: 4 },

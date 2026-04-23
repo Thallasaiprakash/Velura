@@ -388,7 +388,7 @@ export default function SettingsScreen() {
           <Text style={styles.settingsHelp}>
             Prompt to move unfinished tasks to tomorrow in the evening.
           </Text>
-        </View>
+        </BlurView>
 
         {/* Behaviour */}
         <SectionHeader title="Behaviour" />
