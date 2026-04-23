@@ -763,7 +763,7 @@ export default function HomeScreen() {
                 <Text style={styles.addModalText}>Add Task</Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </BlurView>
         </KeyboardAvoidingView>
       </Modal>
 
