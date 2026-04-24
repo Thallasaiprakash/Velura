@@ -9,7 +9,6 @@ import Svg, {
   Ellipse,
   Rect,
   Filter,
-  Blur,
   FeGaussianBlur,
   FeMerge,
   FeMergeNode
