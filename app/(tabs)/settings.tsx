@@ -19,7 +19,6 @@ import { buildGreeting, playVoicePreview } from '../../services/speechService';
 import { VoiceStyle } from '../../services/taskService';
 import { cancelAllNotifications } from '../../services/notificationService';
 import { getCurrentEnergyState } from '../../services/auraService';
-import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
@@ -113,17 +112,17 @@ export default function SettingsScreen() {
     if (silence) setSmartSilence(silence === 'true');
     if (days) setGreetingDays(JSON.parse(days));
 
-    const [unlock, morning, bedtime, voicePref] = await Promise.all([
+    const [unlock, morning, bedtime, voicePref, savedChronotype] = await Promise.all([
       AsyncStorage.getItem('velura_notify_on_unlock'),
       AsyncStorage.getItem('velura_morning_greeting'),
       AsyncStorage.getItem('velura_bedtime_summary'),
       AsyncStorage.getItem('velura_voice_notification_preference'),
+      AsyncStorage.getItem('velura_chronotype'),
     ]);
     if (unlock) setNotifyOnUnlock(unlock === 'true');
     if (morning) setMorningGreeting(morning !== 'false');
     if (bedtime) setBedtimeSummary(bedtime !== 'false');
     if (voicePref) setVoiceNotificationPreference(voicePref as 'priority' | 'all');
-    
     if (savedChronotype) setChronotype(savedChronotype as Chronotype);
 
     const savedStars = await AsyncStorage.getItem('velura_session_stars');
@@ -203,10 +202,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
-      <BackgroundUniverse 
-        energyState={currentEnergy} 
-        achievementCount={achievementStars} 
-      />
+
 
       
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>

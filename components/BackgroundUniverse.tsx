@@ -1,255 +1,262 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
-import Animated, { 
-  useAnimatedStyle, 
+import React, { useMemo, useEffect } from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import Svg, { 
+  Circle, 
+  Defs, 
+  RadialGradient, 
+  Stop, 
+  G, 
+  Ellipse,
+  LinearGradient
+} from 'react-native-svg';
+import AnimatedRN, { 
+  useSharedValue, 
+  useAnimatedProps, 
   withRepeat, 
   withTiming, 
-  useSharedValue, 
-  withDelay, 
-  Easing,
-  withSpring 
+  interpolate,
+  withDelay,
+  Easing as ReanimatedEasing
 } from 'react-native-reanimated';
-import Svg, { Circle, Rect, Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import { Colors } from '../constants/colors';
 
 const { width, height } = Dimensions.get('window');
-
-const STAR_COUNT = 50;
-const ACHIEVEMENT_STAR_COUNT = 20; // Max special stars
-
-const AchievementStar = ({ index, active }: { index: number, active: boolean }) => {
-  const scale = useSharedValue(0);
-  const opacity = useSharedValue(0);
-
-  React.useEffect(() => {
-    if (active) {
-      scale.value = withSpring(1, { damping: 10, stiffness: 80 });
-      opacity.value = withRepeat(
-        withTiming(1, { duration: 1500 + Math.random() * 1000 }),
-        -1,
-        true
-      );
-    }
-  }, [active]);
-
-  // Fixed positions for a "constellation" look
-  const x = useMemo(() => {
-    const angle = (index / ACHIEVEMENT_STAR_COUNT) * Math.PI * 2;
-    const r = width * 0.35;
-    return width / 2 + Math.cos(angle * 1.5) * r * (0.8 + Math.random() * 0.4);
-  }, [index]);
-
-  const y = useMemo(() => {
-    const angle = (index / ACHIEVEMENT_STAR_COUNT) * Math.PI * 2;
-    const r = height * 0.3;
-    return height / 2 + Math.sin(angle * 2.1) * r * (0.8 + Math.random() * 0.4);
-  }, [index]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
-  }));
-
-  if (!active) return null;
-
-  return (
-    <Animated.View 
-      style={[
-        styles.star, 
-        { 
-          left: x, 
-          top: y, 
-          width: 4, 
-          height: 4, 
-          backgroundColor: '#a78bfa',
-          shadowColor: '#a78bfa',
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 1,
-          shadowRadius: 6,
-          elevation: 5,
-        }, 
-        animatedStyle
-      ]} 
-    />
-  );
-};
-
-
-const Star = ({ index }: { index: number }) => {
-  const opacity = useSharedValue(Math.random());
-  
-  React.useEffect(() => {
-    opacity.value = withRepeat(
-      withDelay(
-        Math.random() * 2000,
-        withTiming(Math.random() * 0.8 + 0.2, { 
-          duration: 1000 + Math.random() * 2000,
-          easing: Easing.inOut(Easing.ease)
-        })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const x = useMemo(() => Math.random() * width, []);
-  const y = useMemo(() => Math.random() * height, []);
-  const size = useMemo(() => Math.random() * 2 + 0.5, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View 
-      style={[
-        styles.star, 
-        { left: x, top: y, width: size, height: size }, 
-        animatedStyle
-      ]} 
-    />
-  );
-};
+const AnimatedCircle = AnimatedRN.createAnimatedComponent(Circle);
+const AnimatedG = AnimatedRN.createAnimatedComponent(G);
+const AnimatedEllipse = AnimatedRN.createAnimatedComponent(Ellipse);
 
 interface BackgroundUniverseProps {
   energyState?: 'force' | 'flow' | 'fade';
   achievementCount?: number;
 }
 
-export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 }: BackgroundUniverseProps) => {
-  const nebulaOpacity = useSharedValue(0.3);
-  const nebulaScale = useSharedValue(1);
-  const coreRotation = useSharedValue(0);
+/**
+ * BackgroundUniverse
+ * A premium, realistic cosmic background featuring a central Earth-like planet,
+ * elliptical orbits, and dynamic celestial bodies.
+ */
+export const BackgroundUniverse: React.FC<BackgroundUniverseProps> = ({ 
+  energyState = 'flow', 
+  achievementCount = 0 
+}) => {
+  // Ensure achievementCount is a valid non-negative integer
+  const validStarsCount = Math.max(0, Math.floor(achievementCount || 0));
+  
+  // Rotation for the atmosphere/clouds
+  const cloudRotation = useSharedValue(0);
 
-  React.useEffect(() => {
-    const duration = energyState === 'force' ? 2000 : energyState === 'flow' ? 4000 : 7000;
-    const baseOpacity = 0.4; 
-    const peakOpacity = energyState === 'force' ? 0.7 : energyState === 'flow' ? 0.5 : 0.3;
-    
-    nebulaOpacity.value = withRepeat(
-      withTiming(peakOpacity, { duration, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-    
-    nebulaScale.value = withRepeat(
-      withTiming(1.3, { duration: duration * 2, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-
-    coreRotation.value = withRepeat(
-      withTiming(360, { duration: 20000, easing: Easing.linear }),
+  useEffect(() => {
+    cloudRotation.value = withRepeat(
+      withTiming(360, { duration: 120000, easing: ReanimatedEasing.linear }),
       -1,
       false
     );
-  }, [energyState]);
+  }, []);
 
-
-  const themeColors = useMemo(() => {
+  // Theme colors based on energy state
+  const themeColor = useMemo(() => {
     switch (energyState) {
-      case 'force': return { primary: '#ff4d4d', secondary: '#f59e0b', accent: '#dc2626' };
-      case 'flow': return { primary: '#a78bfa', secondary: '#3b82f6', accent: '#8b5cf6' };
-      case 'fade': return { primary: '#4b5563', secondary: '#1f2937', accent: '#374151' };
-      default: return { primary: '#a78bfa', secondary: '#3b82f6', accent: '#8b5cf6' };
+      case 'force': return Colors.danger;
+      case 'fade': return Colors.primary;
+      case 'flow': 
+      default: return Colors.success;
     }
   }, [energyState]);
 
-  const animatedNebulaStyle = useAnimatedStyle(() => ({
-    opacity: nebulaOpacity.value,
-    transform: [{ scale: nebulaScale.value }]
-  }));
+  // Generate stable star positions
+  const staticStars = useMemo(() => {
+    return Array.from({ length: 120 }).map((_, i) => ({
+      id: i,
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: Math.random() * 1.5 + 0.3,
+      opacity: Math.random() * 0.6 + 0.2,
+      delay: Math.random() * 5000,
+    }));
+  }, []);
 
-  const animatedCoreStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${coreRotation.value}deg` }]
-  }));
-
+  // Orbital definitions for realism
+  const orbits = [
+    { rx: width * 0.45, ry: height * 0.2, planetSize: 7, color: '#94A3B8', duration: 35000 },
+    { rx: width * 0.7, ry: height * 0.35, planetSize: 10, color: '#FDA4AF', duration: 55000, hasRing: true },
+    { rx: width * 1.1, ry: height * 0.6, planetSize: 12, color: '#BAE6FD', duration: 85000 },
+  ];
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      {/* Deep Space Base */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#020205' }]} />
-      
-      {/* Distant Nebula */}
-      <Animated.View style={[StyleSheet.absoluteFill, animatedNebulaStyle]}>
-        <Svg height="100%" width="100%">
-          <Defs>
-            <RadialGradient id="nebula1" cx="30%" cy="40%" r="70%">
-              <Stop offset="0%" stopColor={themeColors.primary} stopOpacity="0.15" />
-              <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
-            </RadialGradient>
-            <RadialGradient id="nebula2" cx="70%" cy="60%" r="70%">
-              <Stop offset="0%" stopColor={themeColors.secondary} stopOpacity="0.1" />
-              <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
-            </RadialGradient>
-          </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#nebula1)" />
-          <Rect x="0" y="0" width="100%" height="100%" fill="url(#nebula2)" />
-        </Svg>
-      </Animated.View>
+    <View style={styles.container}>
+      <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+        <Defs>
+          {/* Deep Space Background */}
+          <RadialGradient id="spaceGrad" cx="50%" cy="50%" r="70%">
+            <Stop offset="0%" stopColor="#0F172A" stopOpacity="1" />
+            <Stop offset="100%" stopColor="#020617" stopOpacity="1" />
+          </RadialGradient>
 
-      {/* The Central Orbit Core (The "Galaxy" look) */}
-      <View style={styles.coreContainer}>
-         <Animated.View style={[styles.coreGlow, animatedCoreStyle]}>
-            <Svg height={width * 1.5} width={width * 1.5} viewBox="0 0 100 100">
-               <Defs>
-                  <RadialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
-                     <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.5" />
-                     <Stop offset="20%" stopColor={themeColors.primary} stopOpacity="0.3" />
-                     <Stop offset="50%" stopColor={themeColors.secondary} stopOpacity="0.1" />
-                     <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
-                  </RadialGradient>
-               </Defs>
-               <Circle cx="50" cy="50" r="45" fill="url(#coreGrad)" />
-               
-               {/* Multiple Orbit Rings */}
-               {[...Array(6)].map((_, i) => (
-                 <Ellipse 
-                   key={`ring-${i}`}
-                   cx="50" 
-                   cy="50" 
-                   rx={30 + i * 8} 
-                   ry={10 + i * 3} 
-                   fill="none" 
-                   stroke={themeColors.primary} 
-                   strokeWidth="0.15" 
-                   strokeOpacity={0.4 - i * 0.05} 
-                   transform={`rotate(${i * 30} 50 50)`} 
-                 />
-               ))}
-            </Svg>
-         </Animated.View>
-      </View>
+          {/* Nebula Clouds */}
+          <RadialGradient id="nebulaBlue" cx="20%" cy="30%" r="80%">
+            <Stop offset="0%" stopColor="#1E40AF" stopOpacity="0.15" />
+            <Stop offset="100%" stopColor="#1E40AF" stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="nebulaPurple" cx="80%" cy="70%" r="80%">
+            <Stop offset="0%" stopColor="#7C3AED" stopOpacity="0.1" />
+            <Stop offset="100%" stopColor="#7C3AED" stopOpacity="0" />
+          </RadialGradient>
 
-      {/* Static Stars */}
-      {[...Array(STAR_COUNT)].map((_, i) => (
-        <Star key={i} index={i} />
-      ))}
+          {/* Earth Body Gradient */}
+          <RadialGradient id="earthGrad" cx="30%" cy="30%" r="70%">
+            <Stop offset="0%" stopColor="#93C5FD" /> 
+            <Stop offset="40%" stopColor="#3B82F6" />
+            <Stop offset="80%" stopColor="#1E40AF" />
+            <Stop offset="100%" stopColor="#172554" />
+          </RadialGradient>
 
-      {/* Achievement Constellation */}
-      {[...Array(ACHIEVEMENT_STAR_COUNT)].map((_, i) => (
-        <AchievementStar key={`ach-${i}`} index={i} active={i < achievementCount} />
-      ))}
+          {/* Atmospheric Glow (Scattering) */}
+          <RadialGradient id="atmosGlow" cx="50%" cy="50%" r="50%">
+            <Stop offset="70%" stopColor={themeColor} stopOpacity="0" />
+            <Stop offset="85%" stopColor={themeColor} stopOpacity="0.4" />
+            <Stop offset="100%" stopColor={themeColor} stopOpacity="0" />
+          </RadialGradient>
+          
+          {/* Cloud Texture Linear Gradient */}
+          <LinearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor="white" stopOpacity="0.5" />
+            <Stop offset="50%" stopColor="white" stopOpacity="0.2" />
+            <Stop offset="100%" stopColor="white" stopOpacity="0.05" />
+          </LinearGradient>
+        </Defs>
+
+        {/* Space Base */}
+        <Rect width={width} height={height} fill="url(#spaceGrad)" />
+        
+        {/* Nebula Overlays */}
+        <Rect width={width} height={height} fill="url(#nebulaBlue)" />
+        <Rect width={width} height={height} fill="url(#nebulaPurple)" />
+
+        {/* Twinkling Field */}
+        {staticStars.map(star => (
+          <Star key={star.id} {...star} />
+        ))}
+
+        {/* Elliptical Orbits */}
+        <G x={width / 2} y={height / 2}>
+          {orbits.map((orb, i) => (
+            <OrbitingBody key={i} {...orb} />
+          ))}
+
+          {/* Achievement Field - Only show first 20 for performance */}
+          {Array.from({ length: Math.min(validStarsCount, 20) }).map((_, i) => (
+            <AchievementStar 
+              key={i} 
+              index={i} 
+              total={Math.min(validStarsCount, 20)} 
+              color={themeColor}
+            />
+          ))}
+        </G>
+
+        {/* CENTRAL PLANET (EARTH) */}
+        <G x={width / 2} y={height / 2}>
+          {/* Atmospheric Bloom */}
+          <Circle r={width * 0.18} fill="url(#atmosGlow)" />
+          
+          {/* Main Body */}
+          <Circle r={width * 0.15} fill="url(#earthGrad)" />
+          
+          {/* Rotating Cloud Systems */}
+          <AnimatedClouds size={width * 0.15} rotation={cloudRotation} />
+          
+          {/* Subtle Shadow Overlay */}
+          <Circle r={width * 0.15} fill="black" fillOpacity="0.1" cx={width * 0.02} cy={width * 0.02} />
+        </G>
+      </Svg>
     </View>
   );
 };
 
+const Star: React.FC<{ x: number, y: number, size: number, opacity: number, delay: number }> = ({ x, y, size, opacity, delay }) => {
+  const opac = useSharedValue(opacity);
+  useEffect(() => {
+    opac.value = withDelay(delay, withRepeat(withTiming(opacity * 0.2, { duration: 3000 }), -1, true));
+  }, []);
+  const animatedProps = useAnimatedProps(() => ({ opacity: opac.value }));
+  return <AnimatedCircle cx={x} cy={y} r={size} fill="white" animatedProps={animatedProps} />;
+};
+
+const OrbitingBody: React.FC<{ rx: number, ry: number, planetSize: number, color: string, duration: number, hasRing?: boolean }> = ({ 
+  rx, ry, planetSize, color, duration, hasRing 
+}) => {
+  const rot = useSharedValue(Math.random() * 360);
+  useEffect(() => {
+    rot.value = withRepeat(withTiming(rot.value + 360, { duration, easing: ReanimatedEasing.linear }), -1, false);
+  }, []);
+
+  const animatedProps = useAnimatedProps(() => {
+    const rad = (rot.value * Math.PI) / 180;
+    return {
+      transform: [
+        { translateX: Math.cos(rad) * rx },
+        { translateY: Math.sin(rad) * ry },
+      ],
+    };
+  });
+
+  return (
+    <G>
+      <Ellipse rx={rx} ry={ry} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="5 5" />
+      <AnimatedG animatedProps={animatedProps}>
+        {hasRing && (
+          <Ellipse rx={planetSize * 2.2} ry={planetSize * 0.8} fill="none" stroke={color} strokeWidth="1" opacity={0.4} transform={[{ rotate: '25deg' }]} />
+        )}
+        <Circle r={planetSize} fill={color} />
+        <Circle r={planetSize * 1.5} fill="white" opacity={0.1} />
+      </AnimatedG>
+    </G>
+  );
+};
+
+const AchievementStar: React.FC<{ index: number, total: number, color: string }> = ({ index, total, color }) => {
+  const rot = useSharedValue((index / total) * 360);
+  const orbitX = width * 0.25;
+  const orbitY = height * 0.12;
+  
+  useEffect(() => {
+    rot.value = withRepeat(withTiming(rot.value + 360, { duration: 15000 + index * 1000, easing: ReanimatedEasing.linear }), -1, false);
+  }, []);
+
+  const animatedProps = useAnimatedProps(() => {
+    const rad = (rot.value * Math.PI) / 180;
+    return {
+      transform: [
+        { translateX: Math.cos(rad) * orbitX },
+        { translateY: Math.sin(rad) * orbitY },
+      ],
+    };
+  });
+
+  return (
+    <AnimatedG animatedProps={animatedProps}>
+      <Circle r={2.5} fill={color} />
+      <Circle r={5} fill={color} opacity={0.3} />
+    </AnimatedG>
+  );
+};
+
+const AnimatedClouds: React.FC<{ size: number, rotation: AnimatedRN.SharedValue<number> }> = ({ size, rotation }) => {
+  const animatedProps = useAnimatedProps(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+  return (
+    <AnimatedG animatedProps={animatedProps}>
+      <Ellipse cx={-size * 0.4} cy={-size * 0.2} rx={size * 0.5} ry={size * 0.2} fill="url(#cloudGrad)" />
+      <Ellipse cx={size * 0.3} cy={size * 0.3} rx={size * 0.6} ry={size * 0.25} fill="url(#cloudGrad)" />
+      <Ellipse cx={-size * 0.2} cy={size * 0.5} rx={size * 0.4} ry={size * 0.15} fill="url(#cloudGrad)" />
+    </AnimatedG>
+  );
+};
+
 const styles = StyleSheet.create({
-  star: {
-    position: 'absolute',
-    backgroundColor: '#fff',
-    borderRadius: 1,
-  },
-  coreContainer: {
+  container: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    opacity: 0.6,
-  },
-  coreGlow: {
-    width: width * 1.5,
-    height: width * 1.5,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#020617',
   },
 });

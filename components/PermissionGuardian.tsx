@@ -25,18 +25,27 @@ export const PermissionGuardian: React.FC = () => {
   });
 
   const checkPermissions = async () => {
-    if (Platform.OS !== 'android' || !NativeModules.VeluraAlarmModule) return;
+    if (Platform.OS !== 'android') return;
+    
+    // Safety check: Ensure the native module is actually linked/available
+    if (!NativeModules.VeluraAlarmModule) {
+      console.warn('[PermissionGuardian] VeluraAlarmModule not found. Skipping native checks.');
+      return;
+    }
+
+    const mod = NativeModules.VeluraAlarmModule;
 
     try {
-      const exactAlarm = await VeluraAlarmModule.canScheduleExactAlarms();
-      const batteryOptimization = await VeluraAlarmModule.isIgnoringBatteryOptimizations();
-      const overlay = await VeluraAlarmModule.canDrawOverlays();
-      const xiaomi = await VeluraAlarmModule.isXiaomiDevice();
+      // Use defensive checks for each method
+      const exactAlarm = mod.canScheduleExactAlarms ? await mod.canScheduleExactAlarms() : true;
+      const batteryOptimization = mod.isIgnoringBatteryOptimizations ? await mod.isIgnoringBatteryOptimizations() : true;
+      const overlay = mod.canDrawOverlays ? await mod.canDrawOverlays() : true;
+      const xiaomi = mod.isXiaomiDevice ? await mod.isXiaomiDevice() : false;
 
       setIsXiaomi(xiaomi);
       setPermissions({ exactAlarm, batteryOptimization, overlay });
 
-      // Show modal if Exact Alarm or Overlay is missing (critical for Xiaomi voice/waking)
+      // Show modal if critical permissions for Xiaomi/Android 14 are missing
       if (!exactAlarm || !overlay) {
         setShowModal(true);
       }

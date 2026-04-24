@@ -38,7 +38,6 @@ import * as Haptics from 'expo-haptics';
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
 import Svg, { Ellipse, Circle } from 'react-native-svg';
-import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -90,81 +89,101 @@ export default function HomeScreen() {
   const [achievementStars, setAchievementStars] = useState<number>(0);
   const sessionBriefingDone = useRef(false);
 
+  const loadUserData = async () => {
+    try {
+      const name = await AsyncStorage.getItem(USERNAME_KEY);
+      const style = await AsyncStorage.getItem(VOICE_STYLE_KEY) as VoiceStyle;
+      const profileJson = await AsyncStorage.getItem('userProfile');
+      
+      if (name) setUserName(name);
+      if (style) setVoiceStyle(style);
+      
+      if (profileJson) {
+        try {
+          setUserProfile(JSON.parse(profileJson));
+        } catch (e) {
+          console.warn('Failed to parse user profile:', e);
+        }
+      }
+
+      const streak = await loadStreakData();
+      setStreakData(streak);
+
+      // Initialize achievement stars for the session
+      if (todayTasks) {
+        const tasksCompleted = todayTasks.filter(t => t.completed).length;
+        setAchievementStars(tasksCompleted);
+      }
+      
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
-      await loadUserData();
-      const granted = await requestNotificationPermissions();
-      if (!granted) {
-        console.log('Notification permissions not granted');
+      try {
+        await loadUserData();
+        const granted = await requestNotificationPermissions();
+        if (!granted) {
+          console.log('Notification permissions not granted');
+        }
+      } catch (e) {
+        console.warn('Init error:', e);
       }
     };
     init();
-  }, [userId, allTodayDone]);
 
-  const loadUserData = async () => {
-    const [name, style] = await Promise.all([
-      AsyncStorage.getItem(USERNAME_KEY),
-      AsyncStorage.getItem(VOICE_STYLE_KEY),
-    ]);
-    if (name) setUserName(name);
-    if (style) setVoiceStyle(style as VoiceStyle);
+    // Check onboarding status
+    const checkOnboarding = async () => {
+      try {
+        const name = await AsyncStorage.getItem(USERNAME_KEY);
+        if (!name) {
+          router.replace('/onboarding/step-name');
+        }
+      } catch (e) {
+        console.warn('Onboarding check error:', e);
+      }
+    };
+    checkOnboarding();
+  }, []);
+
+  useEffect(() => {
+    // Prevent double briefing on startup
+    if (sessionBriefingDone.current) return;
     
-    // Load extended settings
-    const [unlockNotify, morningGreet, bedtimeSum, savedChronotype] = await Promise.all([
-      AsyncStorage.getItem('velura_notify_on_unlock'),
-      AsyncStorage.getItem('velura_morning_greeting'),
-      AsyncStorage.getItem('velura_bedtime_summary'),
-      AsyncStorage.getItem('velura_chronotype'),
-    ]);
+    const initSession = async () => {
+      try {
+        // Wait for tasks to be loaded from Firebase
+        if (loading) return;
+        
+        await reload();
+        
+        const name = await AsyncStorage.getItem(USERNAME_KEY);
+        const morningDone = await AsyncStorage.getItem(`briefing_done_${new Date().toDateString()}`);
+        
+        if (!morningDone && name) {
+          const greeting = buildGreeting(name, todayTasks, voiceStyle);
+          // Wait a bit before speaking to ensure UI is ready
+          setTimeout(() => {
+            speak(greeting, voiceStyle);
+          }, 1500);
+          await AsyncStorage.setItem(`briefing_done_${new Date().toDateString()}`, 'true');
+        }
+        
+        sessionBriefingDone.current = true;
+      } catch (e) {
+        console.error('Session init error:', e);
+      }
+    };
 
-    setUserProfile({
-      name: name || '',
-      voiceStyle: (style as VoiceStyle) || 'calm',
-      notifyOnUnlock: unlockNotify === 'true',
-      morningGreeting: morningGreet !== 'false', // Default true
-      bedtimeSummary: bedtimeSum !== 'false', // Default true
-      chronotype: (savedChronotype as Chronotype) || undefined,
-    });
-    
-    // Trigger modal if chronotype is not set and we're not syncing/loading wildly
-    if (!savedChronotype) {
-      setTimeout(() => setShowChronotypeModal(true), 2000);
-    }
-
-    // Update streak
-    const newStreak = await updateStreak(allTodayDone);
-    setStreakData(newStreak);
-
-    // Load session stars
-    const savedStars = await AsyncStorage.getItem('velura_session_stars');
-    if (savedStars) setAchievementStars(parseInt(savedStars));
-  };
+    initSession();
+  }, [loading, voiceStyle]);
 
   const handleReplayGreeting = () => {
     const text = buildGreeting(userName, todayTasks, voiceStyle, streakData.badge);
     speak(text, voiceStyle);
   };
-
-  const checkAndPlayMorningGreeting = async () => {
-    const now = new Date();
-    const isMorning = now.getHours() < 12;
-    if (!isMorning) return;
-
-    const lastGreetDate = await AsyncStorage.getItem('velura_last_morning_greet');
-    const todayStr = now.toDateString();
-
-    if (lastGreetDate !== todayStr) {
-      // Small delay to ensure everything is loaded and user is ready
-      setTimeout(() => {
-        handleReplayGreeting();
-      }, 1500);
-      await AsyncStorage.setItem('velura_last_morning_greet', todayStr);
-    }
-  };
-
-  // Cooldown ref to prevent voice from firing multiple times in quick succession
-  const lastVoiceTriggerRef = useRef<number>(0);
-  const VOICE_COOLDOWN_MS = 30000; // 30 second cooldown between voice triggers
 
   const triggerVoiceBriefing = useCallback(async (tasksToUse: Task[]) => {
     const now = Date.now();
@@ -187,7 +206,6 @@ export default function HomeScreen() {
   }, [userName, voiceStyle, streakData.badge, speak]);
 
   const checkAndShowNotification = async (overrideTasks?: Task[]) => {
-    // Only block if loading; guests should see notifications too
     if (loading || !userProfile?.notifyOnUnlock) return;
 
     const tasksToUse = overrideTasks || todayTasks;
@@ -206,8 +224,6 @@ export default function HomeScreen() {
         setNotifySubtitle(`You have ${pending.length} tasks pending. Reading them for you now...`);
         setNotifyAction("Speak");
         
-        // Auto-trigger voice for unlock notifications with a delay
-        // 800ms gives Android audio stack time to fully wake up
         setTimeout(() => {
           if (AppState.currentState === 'active') {
             triggerVoiceBriefing(tasksToUse);
@@ -221,24 +237,24 @@ export default function HomeScreen() {
   };
 
   const [notifyAction, setNotifyAction] = useState<'Speak' | 'Move'>('Speak');
+  const lastVoiceTriggerRef = useRef<number>(0);
+  const VOICE_COOLDOWN_MS = 30000;
 
   const handleNotificationAction = async () => {
     setShowInAppNotify(false);
     if (notifyAction === 'Speak') {
       handleReplayGreeting();
     } else {
-      // Bedtime Push logic
       const tomorrowKey = getTomorrowKey();
       await carryForwardTasks(todayKey, tomorrowKey);
       setNotifyTitle("Tasks Moved");
       setNotifySubtitle("I've rescheduled them for tomorrow. Rest well.");
-      setNotifyAction('Speak'); // Reset for next show
+      setNotifyAction('Speak'); 
       setShowInAppNotify(true);
       setTimeout(() => setShowInAppNotify(false), 3000);
     }
   };
 
-  // Refs for stable AppState listener
   const checkNotifyRef = useRef(checkAndShowNotification);
   const reloadRef = useRef(reload);
   
@@ -247,21 +263,14 @@ export default function HomeScreen() {
     reloadRef.current = reload;
   });
 
-  // AppState Listener for "Unlock" / Foreground logic
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
-        console.log('[AppState] App is active (Unlock scenario)');
-        
-        // 1. Trigger voice briefing using ref
         checkNotifyRef.current();
-        
-        // 2. Perform background sync
         reloadRef.current().catch(e => console.error('[AppState] Background sync failed', e));
       }
     });
 
-    // Initial check on mount only if loading is done
     if (!loading) {
       checkNotifyRef.current();
     }
@@ -269,9 +278,8 @@ export default function HomeScreen() {
     return () => {
       subscription.remove();
     };
-  }, []); // Truly stable listener
+  }, []);
 
-  // Periodic "Due Now" Check (every 30s)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -292,35 +300,19 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [todayTasks, lastAlertedTime]);
 
-  // Automatic Morning Greeting logic
-  useEffect(() => {
-    // Only block if loading; guests (no userId) should still get greeted
-    if (!loading && userProfile?.morningGreeting) {
-      checkAndPlayMorningGreeting();
-    }
-  }, [loading, userId, userProfile]);
-
-  // CRITICAL: Post-load unlock voice trigger
-  // This handles the case where the app was COLD STARTED (killed state) via
-  // the native unlock notification. AppState 'active' fires before data loads,
-  // so we need this separate trigger that runs AFTER loading completes.
   useEffect(() => {
     if (!loading && userProfile?.notifyOnUnlock && todayTasks.length > 0) {
       const pending = todayTasks.filter(t => !t.completed);
       if (pending.length > 0 && !sessionBriefingDone.current) {
-        // Check if we should trigger voice (only on initial load, not on every re-render)
         const checkColdStartBriefing = async () => {
           const lastNotify = await AsyncStorage.getItem('velura_last_foreground_notify');
           const now = Date.now();
-          // Only auto-trigger if no recent notification was shown (prevents double-fire)
           if (!lastNotify || now - parseInt(lastNotify) > VOICE_COOLDOWN_MS) {
-            console.log('[ColdStart] Data loaded, triggering unlock voice briefing');
             setNotifyTitle("Agenda Briefing");
             setNotifySubtitle(`You have ${pending.length} tasks pending. Reading them for you now...`);
             setNotifyAction("Speak");
             setShowInAppNotify(true);
             
-            // Delay voice slightly to ensure UI is rendered
             setTimeout(() => {
               if (AppState.currentState === 'active') {
                 triggerVoiceBriefing(todayTasks);
@@ -333,7 +325,7 @@ export default function HomeScreen() {
         checkColdStartBriefing();
       }
     }
-  }, [loading, userProfile?.notifyOnUnlock, todayTasks.length]); // Dependencies refined
+  }, [loading, userProfile?.notifyOnUnlock, todayTasks.length]);
 
   const getTomorrowKey = (): DayKey => {
     const days: DayKey[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -345,16 +337,13 @@ export default function HomeScreen() {
     const updated = { ...userProfile, [key]: value } as UserProfile;
     setUserProfile(updated);
     
-    // Persist locally
     const storageKey = `velura_${key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)}`;
     await AsyncStorage.setItem(storageKey, String(value));
     
-    // Persist to server if logged in
     if (userId) {
       await saveUserProfile(userId, { [key]: value });
     }
 
-    // Success feedback
     if (typeof value === 'boolean') {
         setNotifyTitle("Preference Saved");
         setNotifySubtitle(`${key.replace(/([A-Z])/g, ' $1').toLowerCase()} is now ${value ? 'Enabled' : 'Disabled'}.`);
@@ -374,8 +363,6 @@ export default function HomeScreen() {
     setTimeout(() => setShowInAppNotify(false), 3000);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
-
-
 
   const handleToggle = useCallback(
     (taskId: string) => {
@@ -420,21 +407,15 @@ export default function HomeScreen() {
     
     try {
       const subtasks = await deconstructTask(text);
-      
-      // Delete original parent task
       deleteTask(todayKey, taskId);
-      
-      // Add subtasks
       for (const sub of subtasks) {
         await addTask(todayKey, sub.text, 'normal', sub.timeTag);
       }
-      
       setNotifyTitle("Task Deconstructed ✨");
       setNotifySubtitle(`Created ${subtasks.length} simple steps.`);
       setTimeout(() => setShowInAppNotify(false), 3000);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      console.error(e);
       setNotifyTitle("Deconstruction Failed");
       setNotifySubtitle(e.message || "Could not reach the AI.");
       setTimeout(() => setShowInAppNotify(false), 4000);
@@ -455,7 +436,6 @@ export default function HomeScreen() {
     try {
       const parsedTasks = await parseNeuralVenting(ventText);
       for (const t of parsedTasks) {
-        // High priority = urgent in our system
         const mappedPriority = t.priority === 'High' ? 'urgent' : t.priority === 'Medium' ? 'normal' : 'low';
         await addTask(todayKey, t.text, mappedPriority);
       }
@@ -468,14 +448,10 @@ export default function HomeScreen() {
       setShowVentModal(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e: any) {
-      console.error('[NeuralVent]', e);
       let errorMsg = e.message || 'The Neural Engine could not decode your thoughts just yet.';
-      
-      // Specific check for placeholder key
       if (errorMsg.includes('API Key Missing') || errorMsg.includes('YOUR_OPENAI_API_KEY_HERE')) {
         errorMsg = 'AI Configuration Required: Please update your OpenAI API Key in the settings or .env file to enable Neural Venting.';
       }
-
       setNotifyTitle('Neural Sync Interrupted');
       setNotifySubtitle(errorMsg);
       setShowInAppNotify(true);
@@ -494,12 +470,21 @@ export default function HomeScreen() {
     await AsyncStorage.setItem('velura_session_stars', String(newVal));
   };
 
+  if (loading && todayTasks.length === 0) {
+    return (
+      <View style={styles.loadingContainer}>
+        <BackgroundUniverse energyState={currentEnergy} achievementCount={achievementStars} />
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Synchronizing Universe...</Text>
+          <Text style={styles.loadingSubtext}>Fetching your cosmic schedule</Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <BackgroundUniverse 
-        energyState={currentEnergy as any} 
-        achievementCount={achievementStars} 
-      />
       
       <ElegantNotification
         visible={showInAppNotify}
@@ -511,14 +496,11 @@ export default function HomeScreen() {
         isVoiceActive={speaking}
       />
 
-
-
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
-        {/* Header - The Aura */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greetingText}>
@@ -541,7 +523,6 @@ export default function HomeScreen() {
                 <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />
               )}
             </Svg>
-            {/* The Animated Glow */}
             <View style={[styles.auraGlow, { backgroundColor: getCurrentEnergyState(userProfile?.chronotype) === 'force' ? Colors.danger : getCurrentEnergyState(userProfile?.chronotype) === 'flow' ? Colors.success : Colors.primary }]} />
           </View>
         </View>
@@ -552,7 +533,6 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Progress Card */}
         <View style={styles.progressCard}>
           <View style={styles.progressLeft}>
             <Text style={styles.progressTitle}>Today's Progress</Text>
@@ -561,7 +541,6 @@ export default function HomeScreen() {
                 ? '🎉 All tasks complete!'
                 : `${todayTasks.length - completedCount} remaining`}
             </Text>
-            {/* Progress dots */}
             <View style={styles.progressDots}>
               {todayTasks.map((t, i) => (
                 <View
@@ -577,23 +556,17 @@ export default function HomeScreen() {
           <ProgressRing total={todayTasks.length} completed={completedCount} size={100} />
         </View>
 
-        {/* Streak */}
         {streakData.count > 0 && (
           <View style={styles.section}>
             <StreakBadge count={streakData.count} badge={streakData.badge} />
           </View>
         )}
-        {/* Orbit Interface UI */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Task Orbit</Text>
             <Text style={styles.sectionMeta}>{completedCount}/{todayTasks.length} done</Text>
           </View>
-          {loading && todayTasks.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>Syncing universe... ✨</Text>
-            </View>
-          ) : isDeconstructing ? (
+          {isDeconstructing ? (
             <View style={styles.emptyState}>
                <Svg width={40} height={40} viewBox="0 0 100 100">
                 <Circle cx="50" cy="50" r="45" fill="none" stroke={Colors.primary} strokeWidth="2" strokeDasharray="10 10" />

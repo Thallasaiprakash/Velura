@@ -134,6 +134,15 @@ export function useTasks() {
   const completedTasks = todayTasks.filter((t) => t.completed);
   const allTodayDone = todayTasks.length > 0 && pendingTasks.length === 0;
 
+  // Sync completion count for the cosmic background
+  useEffect(() => {
+    const syncStars = async () => {
+      const completedCount = todayTasks.filter(t => t.completed).length;
+      await AsyncStorage.setItem('velura_session_stars', completedCount.toString());
+    };
+    syncStars();
+  }, [todayTasks]);
+
   // Add task to a day
   const addTask = useCallback(
     async (day: DayKey, text: string, priority: TaskPriority = 'normal', timeTag?: string) => {
