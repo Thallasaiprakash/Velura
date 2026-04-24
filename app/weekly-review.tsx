@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getWeekTasks, getWeekId, DayKey, Task } from '../services/taskService';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
-import { BackgroundUniverse } from '../components/BackgroundUniverse';
+import { OrbitalBackground } from '../components/OrbitalBackground';
 
 const DAYS: DayKey[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
@@ -55,7 +55,7 @@ export default function WeeklyReviewScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.bgPrimary} />
-      <BackgroundUniverse />
+      <OrbitalBackground variant="planner" />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
         <Text style={styles.title}>Weekly Review 📊</Text>

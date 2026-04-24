@@ -4,7 +4,7 @@ import { Platform, View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/colors';
-import { BackgroundUniverse } from '../../components/BackgroundUniverse';
+import { OrbitalBackground } from '../../components/OrbitalBackground';
 import { getCurrentEnergyState } from '../../services/auraService';
 import { Chronotype } from '../../services/taskService';
 import Svg, { Ellipse, Circle, Path, Rect } from 'react-native-svg';
@@ -69,9 +69,9 @@ export default function TabLayout() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <BackgroundUniverse 
-        energyState={energyState as any} 
+      <OrbitalBackground 
         achievementCount={achievementStars} 
+        variant="home"
       />
       
       <Tabs

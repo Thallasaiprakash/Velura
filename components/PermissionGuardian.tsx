@@ -67,15 +67,21 @@ export const PermissionGuardian: React.FC = () => {
   }, []);
 
   const handleOpenAlarmSettings = () => {
-    VeluraAlarmModule.openAlarmSettings();
+    if (VeluraAlarmModule?.openAlarmSettings) {
+      VeluraAlarmModule.openAlarmSettings();
+    }
   };
 
   const handleOpenBatterySettings = () => {
-    VeluraAlarmModule.openBatteryOptimizationSettings();
+    if (VeluraAlarmModule?.openBatteryOptimizationSettings) {
+      VeluraAlarmModule.openBatteryOptimizationSettings();
+    }
   };
 
   const handleOpenOverlaySettings = () => {
-    VeluraAlarmModule.openOverlaySettings();
+    if (VeluraAlarmModule?.openOverlaySettings) {
+      VeluraAlarmModule.openOverlaySettings();
+    }
   };
 
   if (!showModal) return null;

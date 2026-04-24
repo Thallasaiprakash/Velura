@@ -21,7 +21,7 @@ import Animated, {
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { OrbAnimation } from '../components/OrbAnimation';
-import { BackgroundUniverse } from '../components/BackgroundUniverse';
+import { OrbitalBackground } from '../components/OrbitalBackground';
 import { VoiceWaveform } from '../components/VoiceWaveform';
 import { TaskCard } from '../components/TaskCard';
 import { Colors } from '../constants/colors';
@@ -170,7 +170,7 @@ export default function UnlockOverlay() {
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.bgPrimary} hidden />
-      <BackgroundUniverse />
+      <OrbitalBackground variant="home" />
 
       <Animated.View style={[StyleSheet.absoluteFill, containerStyle]}>
         <ScrollView

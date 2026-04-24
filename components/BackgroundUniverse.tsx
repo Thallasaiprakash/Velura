@@ -7,7 +7,8 @@ import Svg, {
   Stop, 
   G, 
   Ellipse,
-  LinearGradient
+  LinearGradient,
+  Rect
 } from 'react-native-svg';
 import AnimatedRN, { 
   useSharedValue, 

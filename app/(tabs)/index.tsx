@@ -38,6 +38,7 @@ import * as Haptics from 'expo-haptics';
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
 import Svg, { Ellipse, Circle } from 'react-native-svg';
+import { OrbitalBackground } from '../../components/OrbitalBackground';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -473,7 +474,7 @@ export default function HomeScreen() {
   if (loading && todayTasks.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <BackgroundUniverse energyState={currentEnergy} achievementCount={achievementStars} />
+        <OrbitalBackground variant="home" achievementCount={achievementStars} />
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Synchronizing Universe...</Text>
