@@ -1,6 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Platform, View, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/colors';
 import { BackgroundUniverse } from '../../components/BackgroundUniverse';
@@ -43,17 +44,23 @@ export default function TabLayout() {
 
   React.useEffect(() => {
     const loadUniverseData = async () => {
-      const [stars, ct] = await Promise.all([
-        AsyncStorage.getItem('velura_session_stars'),
-        AsyncStorage.getItem('velura_chronotype'),
-      ]);
-      if (stars) setAchievementStars(parseInt(stars));
-      if (ct) setChronotype(ct as Chronotype);
+      try {
+        const [stars, ct] = await Promise.all([
+          AsyncStorage.getItem('velura_session_stars'),
+          AsyncStorage.getItem('velura_chronotype'),
+        ]);
+        if (stars) setAchievementStars(parseInt(stars));
+        if (ct) setChronotype(ct as Chronotype);
+      } catch (e) {
+        console.error('[Layout] Failed to load universe data', e);
+      }
     };
 
     loadUniverseData();
-    // Refresh periodically or on focus if possible
-    const interval = setInterval(loadUniverseData, 5000);
+    
+    // We'll use a shorter interval for now to keep it snappy, 
+    // but ideally this would be a shared state.
+    const interval = setInterval(loadUniverseData, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -61,6 +68,7 @@ export default function TabLayout() {
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <BackgroundUniverse 
         energyState={energyState as any} 
         achievementCount={achievementStars} 

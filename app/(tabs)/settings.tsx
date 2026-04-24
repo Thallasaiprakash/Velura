@@ -12,13 +12,14 @@ import {
   Modal,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '../../hooks/useNotifications';
 import { useVoice } from '../../hooks/useVoice';
 import { buildGreeting, playVoicePreview } from '../../services/speechService';
 import { VoiceStyle } from '../../services/taskService';
 import { cancelAllNotifications } from '../../services/notificationService';
+import { getCurrentEnergyState } from '../../services/auraService';
+import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
@@ -38,10 +39,10 @@ const VOICE_OPTIONS: { style: VoiceStyle; emoji: string; label: string }[] = [
 ];
 
 const CHRONOTYPE_OPTIONS: { type: Chronotype; emoji: string; label: string; desc: string }[] = [
-  { type: 'lion', emoji: '🦁', label: 'Lion', desc: 'Early riser, peak energy at dawn.' },
-  { type: 'bear', emoji: '🐻', label: 'Bear', desc: 'Solar cycle sync, peak mid-morning.' },
-  { type: 'wolf', emoji: '🐺', label: 'Wolf', desc: 'Night owl, peak energy in evening.' },
-  { type: 'third-bird', emoji: '🐦', label: 'Third Bird', desc: 'Balanced, flexible daily rhythm.' },
+  { type: 'lion', emoji: '🌅', label: 'Morning Lark', desc: 'Peak energy early in the day.' },
+  { type: 'bear', emoji: '🐻', label: 'The Standard', desc: 'Solar cycle sync, peak mid-morning.' },
+  { type: 'wolf', emoji: '🦉', label: 'Night Owl', desc: 'Unstoppable after the sun sets.' },
+  { type: 'third-bird', emoji: '🦅', label: 'Third Bird', desc: 'Balanced, flexible daily rhythm.' },
 ];
 
 
@@ -84,9 +85,12 @@ export default function SettingsScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [tempHour, setTempHour] = useState('7');
   const [tempMinute, setTempMinute] = useState('00');
+  const [achievementStars, setAchievementStars] = useState(0);
 
   useEffect(() => {
     loadSettings();
+    const interval = setInterval(loadSettings, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadSettings = async () => {
@@ -120,10 +124,10 @@ export default function SettingsScreen() {
     if (bedtime) setBedtimeSummary(bedtime !== 'false');
     if (voicePref) setVoiceNotificationPreference(voicePref as 'priority' | 'all');
     
-    const [savedChronotype] = await Promise.all([
-      AsyncStorage.getItem('velura_chronotype'),
-    ]);
     if (savedChronotype) setChronotype(savedChronotype as Chronotype);
+
+    const savedStars = await AsyncStorage.getItem('velura_session_stars');
+    if (savedStars) setAchievementStars(parseInt(savedStars));
   };
 
 
@@ -195,11 +199,16 @@ export default function SettingsScreen() {
     return `${h}:${String(greetingMinute).padStart(2, '0')} ${ampm}`;
   };
 
+  const currentEnergy = getCurrentEnergyState(chronotype);
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <BackgroundUniverse energyState="fade" />
+      <BackgroundUniverse 
+        energyState={currentEnergy} 
+        achievementCount={achievementStars} 
+      />
 
+      
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <BlurView intensity={20} tint="dark" style={styles.headerBlur}>
           <Text style={styles.pageTitle}>Settings</Text>

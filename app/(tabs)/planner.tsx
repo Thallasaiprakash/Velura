@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { getCurrentEnergyState } from '../../services/auraService';
 import {
   View,
   Text,
@@ -14,7 +15,6 @@ import {
   ImageBackground,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 import { WeekDayTabs, DAYS } from '../../components/WeekDayTabs';
 import { TaskRow } from '../../components/TaskRow';
 import { DayKey, Task, createTask, TaskPriority, Chronotype } from '../../services/taskService';
@@ -22,6 +22,7 @@ import { useTasks } from '../../hooks/useTasks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
+import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string }[] = [
   { value: 'urgent', label: '🔴 Urgent', color: Colors.urgent },
@@ -42,13 +43,21 @@ export default function PlannerScreen() {
   const [selectedPriority, setSelectedPriority] = useState<TaskPriority>('normal');
   const [newTaskTime, setNewTaskTime] = useState('');
   const [chronotype, setChronotype] = useState<Chronotype>('bear');
+  const [achievementStars, setAchievementStars] = useState(0);
+  const currentEnergy = getCurrentEnergyState(chronotype);
 
   useEffect(() => {
-    const loadChronotype = async () => {
+    const loadData = async () => {
       const saved = await AsyncStorage.getItem('velura_chronotype');
       if (saved) setChronotype(saved as Chronotype);
+      const stars = await AsyncStorage.getItem('velura_session_stars');
+      if (stars) setAchievementStars(parseInt(stars));
     };
-    loadChronotype();
+    loadData();
+    
+    // Poll for changes to stay in sync with Settings/Home
+    const interval = setInterval(loadData, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const currentTasks = getTasksForDay(selectedDay);
@@ -82,9 +91,12 @@ export default function PlannerScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      <BackgroundUniverse energyState="flow" />
+      <BackgroundUniverse 
+        energyState={currentEnergy} 
+        achievementCount={achievementStars} 
+      />
 
+      
       {/* Header */}
       <BlurView intensity={30} tint="dark" style={styles.header}>
         <Text style={styles.title}>Cosmic Planner</Text>

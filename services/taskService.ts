@@ -251,17 +251,35 @@ export async function getWeekTasks(userId: string | null, weekId: string): Promi
   }
 }
 
+/**
+ * Recursively removes undefined values from an object for Firestore compatibility.
+ */
+function sanitize(obj: any): any {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitize);
+  
+  const sanitized: any = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      sanitized[key] = sanitize(obj[key]);
+    }
+  }
+  return sanitized;
+}
+
 export async function saveWeekTasks(userId: string | null, weekId: string, weekData: WeekData): Promise<void> {
   const cacheKey = userId ? `${TASKS_CACHE_KEY}_${weekId}` : `${LOCAL_ONLY_TASKS_PREFIX}_${weekId}`;
   
   try {
+    const sanitizedData = sanitize(weekData);
     if (userId) {
       const weekRef = doc(db, 'users', userId, 'weeks', weekId);
-      await setDoc(weekRef, weekData, { merge: false });
+      await setDoc(weekRef, sanitizedData, { merge: false });
     }
-    await setCached(cacheKey, weekData);
+    await setCached(cacheKey, sanitizedData);
   } catch (error) {
     console.error('Error saving week tasks:', error);
+    // Even if server save fails, keep it in cache
     await setCached(cacheKey, weekData);
   }
 }

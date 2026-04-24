@@ -38,6 +38,7 @@ import * as Haptics from 'expo-haptics';
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
 import Svg, { Ellipse, Circle } from 'react-native-svg';
+import { BackgroundUniverse } from '../../components/BackgroundUniverse';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -87,6 +88,7 @@ export default function HomeScreen() {
 
   // Session Stars (Achievement Stars)
   const [achievementStars, setAchievementStars] = useState<number>(0);
+  const sessionBriefingDone = useRef(false);
 
   useEffect(() => {
     const init = async () => {
@@ -170,7 +172,14 @@ export default function HomeScreen() {
       console.log('[Briefing] Voice cooldown active, skipping.');
       return;
     }
+    
+    if (sessionBriefingDone.current) {
+      console.log('[Briefing] Session briefing already completed.');
+      return;
+    }
+
     lastVoiceTriggerRef.current = now;
+    sessionBriefingDone.current = true;
 
     console.log('[Briefing] Auto-triggering voice briefing...');
     const text = buildGreeting(userName, tasksToUse, voiceStyle, streakData.badge);
@@ -298,7 +307,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (!loading && userProfile?.notifyOnUnlock && todayTasks.length > 0) {
       const pending = todayTasks.filter(t => !t.completed);
-      if (pending.length > 0) {
+      if (pending.length > 0 && !sessionBriefingDone.current) {
         // Check if we should trigger voice (only on initial load, not on every re-render)
         const checkColdStartBriefing = async () => {
           const lastNotify = await AsyncStorage.getItem('velura_last_foreground_notify');
@@ -324,7 +333,7 @@ export default function HomeScreen() {
         checkColdStartBriefing();
       }
     }
-  }, [loading, userProfile?.notifyOnUnlock]); // Only runs when loading transitions to false
+  }, [loading, userProfile?.notifyOnUnlock, todayTasks.length]); // Dependencies refined
 
   const getTomorrowKey = (): DayKey => {
     const days: DayKey[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -487,7 +496,10 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <BackgroundUniverse 
+        energyState={currentEnergy as any} 
+        achievementCount={achievementStars} 
+      />
       
       <ElegantNotification
         visible={showInAppNotify}

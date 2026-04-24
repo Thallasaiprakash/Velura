@@ -9,7 +9,7 @@ import Animated, {
   Easing,
   withSpring 
 } from 'react-native-reanimated';
-import Svg, { Circle, Rect, Defs, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Rect, Defs, RadialGradient, Stop, Ellipse } from 'react-native-svg';
 import { Colors } from '../constants/colors';
 
 const { width, height } = Dimensions.get('window');
@@ -119,11 +119,12 @@ interface BackgroundUniverseProps {
 export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 }: BackgroundUniverseProps) => {
   const nebulaOpacity = useSharedValue(0.3);
   const nebulaScale = useSharedValue(1);
+  const coreRotation = useSharedValue(0);
 
   React.useEffect(() => {
     const duration = energyState === 'force' ? 2000 : energyState === 'flow' ? 4000 : 7000;
-    const baseOpacity = 0.4 + (achievementCount * 0.05); // More stars = more nebula vibrancy
-    const peakOpacity = Math.min(0.85, 0.65 + (achievementCount * 0.05));
+    const baseOpacity = 0.4; 
+    const peakOpacity = energyState === 'force' ? 0.7 : energyState === 'flow' ? 0.5 : 0.3;
     
     nebulaOpacity.value = withRepeat(
       withTiming(peakOpacity, { duration, easing: Easing.inOut(Easing.ease) }),
@@ -132,19 +133,25 @@ export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 
     );
     
     nebulaScale.value = withRepeat(
-      withTiming(1.25, { duration: duration * 1.5, easing: Easing.inOut(Easing.ease) }),
+      withTiming(1.3, { duration: duration * 2, easing: Easing.inOut(Easing.ease) }),
       -1,
       true
     );
-  }, [energyState, achievementCount]);
+
+    coreRotation.value = withRepeat(
+      withTiming(360, { duration: 20000, easing: Easing.linear }),
+      -1,
+      false
+    );
+  }, [energyState]);
 
 
-  const nebulaColor = useMemo(() => {
+  const themeColors = useMemo(() => {
     switch (energyState) {
-      case 'force': return '#ff4d4d'; // Reddish for intense
-      case 'flow': return '#a78bfa';  // Purple/Indigo for flow
-      case 'fade': return '#4b5563';  // Grayish for fade
-      default: return Colors.primary;
+      case 'force': return { primary: '#ff4d4d', secondary: '#f59e0b', accent: '#dc2626' };
+      case 'flow': return { primary: '#a78bfa', secondary: '#3b82f6', accent: '#8b5cf6' };
+      case 'fade': return { primary: '#4b5563', secondary: '#1f2937', accent: '#374151' };
+      default: return { primary: '#a78bfa', secondary: '#3b82f6', accent: '#8b5cf6' };
     }
   }, [energyState]);
 
@@ -153,22 +160,26 @@ export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 
     transform: [{ scale: nebulaScale.value }]
   }));
 
+  const animatedCoreStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${coreRotation.value}deg` }]
+  }));
+
 
   return (
     <View style={StyleSheet.absoluteFill}>
       {/* Deep Space Base */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#050508' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: '#020205' }]} />
       
-      {/* Nebula Glows */}
+      {/* Distant Nebula */}
       <Animated.View style={[StyleSheet.absoluteFill, animatedNebulaStyle]}>
         <Svg height="100%" width="100%">
           <Defs>
-            <RadialGradient id="nebula1" cx="20%" cy="30%" r="50%">
-              <Stop offset="0%" stopColor={nebulaColor} stopOpacity="0.4" />
+            <RadialGradient id="nebula1" cx="30%" cy="40%" r="70%">
+              <Stop offset="0%" stopColor={themeColors.primary} stopOpacity="0.15" />
               <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
             </RadialGradient>
-            <RadialGradient id="nebula2" cx="80%" cy="70%" r="50%">
-              <Stop offset="0%" stopColor={energyState === 'force' ? '#f59e0b' : '#3b82f6'} stopOpacity="0.3" />
+            <RadialGradient id="nebula2" cx="70%" cy="60%" r="70%">
+              <Stop offset="0%" stopColor={themeColors.secondary} stopOpacity="0.1" />
               <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
             </RadialGradient>
           </Defs>
@@ -176,6 +187,39 @@ export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 
           <Rect x="0" y="0" width="100%" height="100%" fill="url(#nebula2)" />
         </Svg>
       </Animated.View>
+
+      {/* The Central Orbit Core (The "Galaxy" look) */}
+      <View style={styles.coreContainer}>
+         <Animated.View style={[styles.coreGlow, animatedCoreStyle]}>
+            <Svg height={width * 1.5} width={width * 1.5} viewBox="0 0 100 100">
+               <Defs>
+                  <RadialGradient id="coreGrad" cx="50%" cy="50%" r="50%">
+                     <Stop offset="0%" stopColor="#FFFFFF" stopOpacity="0.5" />
+                     <Stop offset="20%" stopColor={themeColors.primary} stopOpacity="0.3" />
+                     <Stop offset="50%" stopColor={themeColors.secondary} stopOpacity="0.1" />
+                     <Stop offset="100%" stopColor="transparent" stopOpacity="0" />
+                  </RadialGradient>
+               </Defs>
+               <Circle cx="50" cy="50" r="45" fill="url(#coreGrad)" />
+               
+               {/* Multiple Orbit Rings */}
+               {[...Array(6)].map((_, i) => (
+                 <Ellipse 
+                   key={`ring-${i}`}
+                   cx="50" 
+                   cy="50" 
+                   rx={30 + i * 8} 
+                   ry={10 + i * 3} 
+                   fill="none" 
+                   stroke={themeColors.primary} 
+                   strokeWidth="0.15" 
+                   strokeOpacity={0.4 - i * 0.05} 
+                   transform={`rotate(${i * 30} 50 50)`} 
+                 />
+               ))}
+            </Svg>
+         </Animated.View>
+      </View>
 
       {/* Static Stars */}
       {[...Array(STAR_COUNT)].map((_, i) => (
@@ -187,7 +231,6 @@ export const BackgroundUniverse = ({ energyState = 'flow', achievementCount = 0 
         <AchievementStar key={`ach-${i}`} index={i} active={i < achievementCount} />
       ))}
     </View>
-
   );
 };
 
@@ -196,5 +239,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     backgroundColor: '#fff',
     borderRadius: 1,
+  },
+  coreContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.6,
+  },
+  coreGlow: {
+    width: width * 1.5,
+    height: width * 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

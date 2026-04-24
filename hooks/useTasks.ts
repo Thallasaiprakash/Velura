@@ -53,16 +53,27 @@ export function useTasks() {
       const data = await getWeekTasks(userId, weekId);
       
       setWeekData(prev => {
-        // If initial load and prev is empty, just take the data
-        const isPrevEmpty = Object.values(prev.days).every(tasks => tasks.length === 0);
-        if (isInitial && isPrevEmpty) {
-          console.log('[useTasks] Initial data loaded');
-          return data;
+        try {
+          // Validation: If data is null or malformed, return previous state
+          if (!data || !data.days) {
+            console.warn('[useTasks] Received invalid data from server, skipping merge.');
+            return prev;
+          }
+
+          // If initial load and prev is empty, just take the data
+          const isPrevEmpty = !prev || !prev.days || Object.values(prev.days).every(tasks => tasks.length === 0);
+          if (isInitial && isPrevEmpty) {
+            console.log('[useTasks] Initial data loaded');
+            return data;
+          }
+          
+          // Otherwise, safely merge to preserve any local-only changes
+          console.log('[useTasks] Merging sync data with local state');
+          return mergeWeekData(prev, data);
+        } catch (mergeError) {
+          console.error('[useTasks] Critical error during state merge:', mergeError);
+          return prev; // Fallback to current state to prevent crash
         }
-        
-        // Otherwise, safely merge to preserve any local-only changes
-        console.log('[useTasks] Merging sync data with local state');
-        return mergeWeekData(prev, data);
       });
       return data; // Return data for awaiting
     } catch (e) {
@@ -97,8 +108,10 @@ export function useTasks() {
           // If no local-only data, just ensure we have the server data
           loadWeek(false);
         }
-      } catch (err) {
-        console.error('[useTasks] Sync failed:', err);
+      } catch (err: any) {
+        console.error('[useTasks] Sync process encountered an error:', err);
+        // Do not rethrow here to prevent unhandled promise rejection crashes
+        setError(`Sync failed: ${err.message || 'Unknown error'}`);
       }
     }
 
