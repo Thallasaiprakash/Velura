@@ -17,6 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
+const AnimatedG = Animated.createAnimatedComponent(G);
 import { Task, Chronotype } from '../services/taskService';
 import { Colors } from '../constants/colors';
 import { Theme } from '../constants/theme';
@@ -323,16 +324,18 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
                     <Circle cx="50" cy="50" r={PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE].r + 4} fill="rgba(251, 191, 36, 0.15)" stroke="rgba(251, 191, 36, 0.3)" strokeWidth="0.5" />
                   )}
 
-                  <G rotation={selfRotation.value} origin="50, 50">
+                  <AnimatedG animatedProps={useAnimatedProps(() => ({
+                    transform: `rotate(${selfRotation.value}, 50, 50)`
+                  }))}>
                     <Circle cx="50" cy="50" r={PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE].r} fill={`url(#grad-${task.id})`} />
                     {/* Planet texture/features */}
                     <Circle cx="42" cy="42" r="3" fill="rgba(255,255,255,0.1)" />
                     <Circle cx="58" cy="58" r="4" fill="rgba(0,0,0,0.1)" />
-                  </G>
+                  </AnimatedG>
                   
                   {/* Subtle ring for low priority or bio-dip indicator */}
                   {(task.priority === 'low' || isBioDip) && (
-                    <G rotation="15" origin="50, 50">
+                    <G transform="rotate(15, 50, 50)">
                         <Circle cx="50" cy="50" r={isBioDip ? 22 : 18} fill="none" stroke={isBioDip ? "rgba(251, 191, 36, 0.4)" : "rgba(255,255,255,0.2)"} strokeWidth={isBioDip ? 1.5 : 1} />
                     </G>
                   )}

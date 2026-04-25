@@ -204,7 +204,7 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
             fill="none" 
             stroke="url(#ringGrad)" 
             strokeWidth="1.2" 
-            transform={[{ rotate: '25deg' }]} 
+            transform="rotate(25)" 
           />
         )}
         <Circle r={planetSize} fill={color} />
