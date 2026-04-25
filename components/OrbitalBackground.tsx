@@ -186,11 +186,10 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
 
   const animatedProps = useAnimatedProps(() => {
     const rad = (rot.value * Math.PI) / 180;
+    const tx = Math.cos(rad) * rx;
+    const ty = Math.sin(rad) * ry;
     return {
-      transform: [
-        { translateX: Math.cos(rad) * rx },
-        { translateY: Math.sin(rad) * ry },
-      ],
+      transform: `translate(${tx}, ${ty})`,
     };
   });
 
@@ -225,11 +224,10 @@ const AchievementParticle: React.FC<{ index: number, total: number }> = ({ index
 
   const animatedProps = useAnimatedProps(() => {
     const rad = (rot.value * Math.PI) / 180;
+    const tx = Math.cos(rad) * orbitX;
+    const ty = Math.sin(rad) * orbitY;
     return {
-      transform: [
-        { translateX: Math.cos(rad) * orbitX },
-        { translateY: Math.sin(rad) * orbitY },
-      ],
+      transform: `translate(${tx}, ${ty})`,
     };
   });
 
@@ -243,7 +241,7 @@ const AchievementParticle: React.FC<{ index: number, total: number }> = ({ index
 
 const PlanetClouds: React.FC<{ size: number, rotation: Animated.SharedValue<number> }> = ({ size, rotation }) => {
   const animatedProps = useAnimatedProps(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
+    transform: `rotate(${rotation.value})`,
   }));
   return (
     <AnimatedG animatedProps={animatedProps}>
