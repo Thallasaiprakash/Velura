@@ -25,6 +25,7 @@ import { Theme } from '../../constants/theme';
 import { USERNAME_KEY } from '../onboarding/step-name';
 import { VOICE_STYLE_KEY } from '../onboarding/step-voice';
 import { Chronotype } from '../../services/taskService';
+import { OrbitalBackground } from '../../components/OrbitalBackground';
 
 const GREETING_TIME_KEY = 'velura_greeting_time';
 const SMART_SILENCE_KEY = 'velura_smart_silence';
@@ -202,6 +203,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.container}>
+      <OrbitalBackground achievementCount={achievementStars} />
 
 
       

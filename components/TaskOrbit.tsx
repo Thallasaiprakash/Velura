@@ -80,39 +80,56 @@ const StarShower = ({ color }: { color: string }) => {
 };
 
 const OrbitalDust = ({ radius, count, color }: { radius: number; count: number; color?: string }) => {
-  const particles = Array.from({ length: count }).map((_, i) => {
-    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.5;
-    const opacity = useSharedValue(Math.random() * 0.5 + 0.1);
-    const scale = useSharedValue(Math.random() * 0.5 + 0.5);
-
-    useEffect(() => {
-      const pulseIn = () => {
-        opacity.value = withTiming(Math.random() * 0.6 + 0.2, { duration: 2000 + Math.random() * 2000 }, () => {
-          opacity.value = withTiming(Math.random() * 0.3 + 0.1, { duration: 2000 + Math.random() * 2000 }, pulseIn);
-        });
-      };
-      pulseIn();
-    }, []);
-
-    const style = useAnimatedStyle(() => ({
-      position: 'absolute',
-      width: 2,
-      height: 2,
-      borderRadius: 1,
-      backgroundColor: color || '#fff',
-      opacity: opacity.value,
-      transform: [
-        { translateX: Math.cos(angle) * (radius + (Math.random() * 10 - 5)) },
-        { translateY: Math.sin(angle) * (radius + (Math.random() * 10 - 5)) },
-        { scale: scale.value }
-      ],
+  const particles = useMemo(() => {
+    return Array.from({ length: count }).map((_, i) => ({
+      id: i,
+      angle: (i / count) * Math.PI * 2 + Math.random() * 0.5,
+      initialOpacity: Math.random() * 0.5 + 0.1,
+      initialScale: Math.random() * 0.5 + 0.5,
+      duration: 2000 + Math.random() * 3000,
     }));
+  }, [count, radius]);
 
-    return <Animated.View key={i} style={style} />;
-  });
-
-  return <View style={StyleSheet.absoluteFill}>{particles}</View>;
+  return (
+    <View style={StyleSheet.absoluteFill}>
+      {particles.map((p) => (
+        <DustParticle key={p.id} {...p} radius={radius} color={color} />
+      ))}
+    </View>
+  );
 };
+
+const DustParticle = ({ radius, angle, initialOpacity, initialScale, duration, color }: any) => {
+  const opacity = useSharedValue(initialOpacity);
+  
+  useEffect(() => {
+    opacity.value = withRepeat(
+      withSequence(
+        withTiming(initialOpacity * 2, { duration, easing: Easing.inOut(Easing.sin) }),
+        withTiming(initialOpacity, { duration, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    position: 'absolute',
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: color || '#fff',
+    opacity: opacity.value,
+    transform: [
+      { translateX: Math.cos(angle) * (radius + 2) },
+      { translateY: Math.sin(angle) * (radius + 2) },
+      { scale: initialScale }
+    ],
+  }));
+
+  return <Animated.View style={style} />;
+};
+
 
 const PLANET_COLORS = {
   urgent: ['#fde047', '#f59e0b'], // The North Star (Golden/Sun)

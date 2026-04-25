@@ -487,9 +487,11 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      <OrbitalBackground achievementCount={achievementStars} />
       
       <ElegantNotification
         visible={showInAppNotify}
+
         title={notifyTitle}
         subtitle={notifySubtitle}
         onDismiss={() => setShowInAppNotify(false)}

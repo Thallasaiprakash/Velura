@@ -22,6 +22,7 @@ import { useTasks } from '../../hooks/useTasks';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../../constants/colors';
 import { Theme } from '../../constants/theme';
+import { OrbitalBackground } from '../../components/OrbitalBackground';
 
 const PRIORITY_OPTIONS: { value: TaskPriority; label: string; color: string }[] = [
   { value: 'urgent', label: '🔴 Urgent', color: Colors.urgent },
@@ -90,6 +91,7 @@ export default function PlannerScreen() {
 
   return (
     <View style={styles.container}>
+      <OrbitalBackground achievementCount={achievementStars} />
 
 
       
