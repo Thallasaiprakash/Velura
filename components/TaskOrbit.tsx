@@ -14,6 +14,7 @@ import Animated, {
   withDelay,
   withSequence,
   useDerivedValue,
+  useAnimatedProps,
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
