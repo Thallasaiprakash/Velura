@@ -184,7 +184,7 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
     rot.value = withDelay(delay, withRepeat(withTiming(rot.value + 360, { duration, easing: Easing.linear }), -1, false));
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const animatedProps = useAnimatedProps(() => {
     const rad = (rot.value * Math.PI) / 180;
     return {
       transform: [
@@ -197,7 +197,7 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
   return (
     <G>
       <Ellipse rx={rx} ry={ry} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="4 8" />
-      <AnimatedG style={animatedStyle}>
+      <AnimatedG animatedProps={animatedProps}>
         {hasRing && (
           <Ellipse 
             rx={planetSize * 2.2} 
@@ -223,7 +223,7 @@ const AchievementParticle: React.FC<{ index: number, total: number }> = ({ index
     rot.value = withRepeat(withTiming(rot.value + 360, { duration: 25000 + index * 500, easing: Easing.linear }), -1, false);
   }, []);
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const animatedProps = useAnimatedProps(() => {
     const rad = (rot.value * Math.PI) / 180;
     return {
       transform: [
@@ -234,7 +234,7 @@ const AchievementParticle: React.FC<{ index: number, total: number }> = ({ index
   });
 
   return (
-    <AnimatedG style={animatedStyle}>
+    <AnimatedG animatedProps={animatedProps}>
       <Circle r={1.5} fill="#FCD34D" />
       <Circle r={3} fill="#FCD34D" opacity={0.3} />
     </AnimatedG>
@@ -242,11 +242,11 @@ const AchievementParticle: React.FC<{ index: number, total: number }> = ({ index
 };
 
 const PlanetClouds: React.FC<{ size: number, rotation: Animated.SharedValue<number> }> = ({ size, rotation }) => {
-  const animatedStyle = useAnimatedStyle(() => ({
+  const animatedProps = useAnimatedProps(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
   return (
-    <AnimatedG style={animatedStyle}>
+    <AnimatedG animatedProps={animatedProps}>
       <Ellipse cx={-size * 0.3} cy={-size * 0.4} rx={size * 0.5} ry={size * 0.2} fill="white" opacity={0.15} />
       <Ellipse cx={size * 0.4} cy={size * 0.1} rx={size * 0.6} ry={size * 0.25} fill="white" opacity={0.1} />
       <Ellipse cx={-size * 0.2} cy={size * 0.5} rx={size * 0.4} ry={size * 0.18} fill="white" opacity={0.15} />
