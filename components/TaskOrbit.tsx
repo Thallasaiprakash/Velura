@@ -13,6 +13,7 @@ import Animated, {
   Extrapolate,
   withDelay,
   withSequence,
+  useDerivedValue,
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
@@ -37,46 +38,52 @@ const SPEEDS = {
   low: 30000,
 };
 
-const StarShower = ({ color }: { color: string }) => {
-  const particles = Array.from({ length: 15 }).map((_, i) => {
-    const angle = (i / 15) * Math.PI * 2 + (Math.random() * 0.5);
-    const distance = useSharedValue(0);
-    const opacity = useSharedValue(1);
-    const scale = useSharedValue(1);
+const Particle = ({ i, color }: { i: number, color: string }) => {
+  const angle = (i / 15) * Math.PI * 2 + (Math.random() * 0.5);
+  const distance = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const scale = useSharedValue(1);
 
-    useEffect(() => {
-      distance.value = withDelay(i * 10, withTiming(80 + Math.random() * 60, { 
-        duration: 1000, 
-        easing: Easing.out(Easing.back(1.5)) 
-      }));
-      opacity.value = withDelay(500, withTiming(0, { duration: 500 }));
-      scale.value = withTiming(1.5, { duration: 200 }, () => {
-        scale.value = withTiming(0, { duration: 800 });
-      });
-    }, []);
-
-    const style = useAnimatedStyle(() => ({
-      position: 'absolute',
-      width: 4,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: color,
-      shadowColor: color,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 1,
-      shadowRadius: 4,
-      transform: [
-        { translateX: Math.cos(angle) * distance.value },
-        { translateY: Math.sin(angle) * distance.value },
-        { scale: scale.value }
-      ],
-      opacity: opacity.value,
+  useEffect(() => {
+    distance.value = withDelay(i * 10, withTiming(80 + Math.random() * 60, { 
+      duration: 1000, 
+      easing: Easing.out(Easing.back(1.5)) 
     }));
+    opacity.value = withDelay(500, withTiming(0, { duration: 500 }));
+    scale.value = withTiming(1.5, { duration: 200 }, () => {
+      scale.value = withTiming(0, { duration: 800 });
+    });
+  }, [i]);
 
-    return <Animated.View key={i} style={style} />;
-  });
+  const style = useAnimatedStyle(() => ({
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: color,
+    shadowColor: color,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    transform: [
+      { translateX: Math.cos(angle) * distance.value },
+      { translateY: Math.sin(angle) * distance.value },
+      { scale: scale.value }
+    ],
+    opacity: opacity.value,
+  }));
 
-  return <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>{particles}</View>;
+  return <Animated.View style={style} />;
+};
+
+const StarShower = ({ color }: { color: string }) => {
+  return (
+    <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
+      {Array.from({ length: 15 }).map((_, i) => (
+        <Particle key={i} i={i} color={color} />
+      ))}
+    </View>
+  );
 };
 
 const OrbitalDust = ({ radius, count, color }: { radius: number; count: number; color?: string }) => {
@@ -207,6 +214,17 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   const radius = RADII[task.priority as keyof typeof RADII] || RADII.normal;
   const colors = PLANET_COLORS[task.priority as keyof typeof PLANET_COLORS] || PLANET_COLORS.normal;
 
+  // Derive coordinates from rotation and radius
+  const derivedX = useDerivedValue(() => {
+    const rad = (rotation.value * Math.PI) / 180;
+    return Math.cos(rad) * radius;
+  });
+
+  const derivedY = useDerivedValue(() => {
+    const rad = (rotation.value * Math.PI) / 180;
+    return Math.sin(rad) * radius;
+  });
+
   const animatedStyle = useAnimatedStyle(() => {
     if (isCompleting.value) {
        return {
@@ -231,12 +249,9 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
       };
     }
 
-    const rad = (rotation.value * Math.PI) / 180;
-    const x = Math.cos(rad) * radius;
-    const y = Math.sin(rad) * radius;
-    
-    translateX.value = withSpring(x, { damping: 15, stiffness: 100 });
-    translateY.value = withSpring(y, { damping: 15, stiffness: 100 });
+    // Smoothly follow derived values
+    translateX.value = withSpring(derivedX.value, { damping: 15, stiffness: 100 });
+    translateY.value = withSpring(derivedY.value, { damping: 15, stiffness: 100 });
 
     return {
       transform: [
