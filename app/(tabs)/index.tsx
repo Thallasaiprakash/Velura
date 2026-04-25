@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useSharedValue, withSpring } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { useTasks } from '../../hooks/useTasks';
@@ -87,8 +88,9 @@ export default function HomeScreen() {
   const [ventText, setVentText] = useState('');
   const [isVenting, setIsVenting] = useState(false);
 
-  // Session Stars (Achievement Stars)
-  const [achievementStars, setAchievementStars] = useState<number>(0);
+  // Session Stars (Achievement Stars) - Moved to SharedValue for performance/stability
+  const achievementStars = useSharedValue(0);
+  const [achievementCount, setAchievementCount] = useState(0); // For UI outside TaskOrbit
   const sessionBriefingDone = useRef(false);
 
   const loadUserData = async () => {
@@ -114,7 +116,8 @@ export default function HomeScreen() {
       // Initialize achievement stars for the session
       if (todayTasks) {
         const tasksCompleted = todayTasks.filter(t => t.completed).length;
-        setAchievementStars(tasksCompleted);
+        achievementStars.value = tasksCompleted;
+        setAchievementCount(tasksCompleted);
       }
       
     } catch (error) {
@@ -467,15 +470,15 @@ export default function HomeScreen() {
 
   const handleTaskOrbitComplete = async (taskId: string) => {
     handleToggle(taskId);
-    const newVal = achievementStars + 1;
-    setAchievementStars(newVal);
-    await AsyncStorage.setItem('velura_session_stars', String(newVal));
+    achievementStars.value = withSpring(achievementStars.value + 1);
+    setAchievementCount(prev => prev + 1);
+    await AsyncStorage.setItem('velura_session_stars', String(achievementStars.value));
   };
 
   if (loading && todayTasks.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <OrbitalBackground variant="home" achievementCount={achievementStars} />
+        <OrbitalBackground variant="home" achievementCount={achievementCount} />
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Synchronizing Universe...</Text>
@@ -487,7 +490,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <OrbitalBackground achievementCount={achievementStars} />
+      <OrbitalBackground achievementCount={achievementCount} />
       
       <ElegantNotification
         visible={showInAppNotify}
@@ -593,9 +596,9 @@ export default function HomeScreen() {
                  achievementStars={achievementStars}
                />
                {/* Achievement Count Overlay */}
-               {achievementStars > 0 && (
+               {achievementCount > 0 && (
                  <View style={styles.constellationBadge}>
-                    <Text style={styles.constellationText}>⭐ {achievementStars} Stars in your Constellation</Text>
+                    <Text style={styles.constellationText}>⭐ {achievementCount} Stars in your Constellation</Text>
                  </View>
                )}
             </View>

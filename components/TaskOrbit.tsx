@@ -15,6 +15,7 @@ import Animated, {
   withSequence,
   useDerivedValue,
   useAnimatedProps,
+  withDecay,
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
 import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
@@ -158,7 +159,7 @@ interface TaskOrbitProps {
   onCompleteTask: (taskId: string) => void;
   onEnterTunnel: (task: Task) => void;
   chronotype?: Chronotype;
-  achievementStars?: number;
+  achievementStars?: Animated.SharedValue<number>;
 }
 
 const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype }: any) => {
@@ -326,7 +327,7 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
                   )}
 
                   <AnimatedG animatedProps={useAnimatedProps(() => ({
-                    transform: `rotate(${selfRotation.value}, 50, 50)`
+                    transform: `rotate(${selfRotation.value} 50 50)`
                   }))}>
                     <Circle cx="50" cy="50" r={PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE].r} fill={`url(#grad-${task.id})`} />
                     {/* Planet texture/features */}
@@ -336,7 +337,7 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
                   
                   {/* Subtle ring for low priority or bio-dip indicator */}
                   {(task.priority === 'low' || isBioDip) && (
-                    <G transform="rotate(15, 50, 50)">
+                    <G transform="rotate(15 50 50)">
                         <Circle cx="50" cy="50" r={isBioDip ? 22 : 18} fill="none" stroke={isBioDip ? "rgba(251, 191, 36, 0.4)" : "rgba(255,255,255,0.2)"} strokeWidth={isBioDip ? 1.5 : 1} />
                     </G>
                   )}
@@ -355,7 +356,7 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
 };
 
 
-export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel, chronotype, achievementStars = 0 }: TaskOrbitProps) {
+export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel, chronotype, achievementStars }: TaskOrbitProps) {
   const coreScale = useSharedValue(1);
   const coreOpacity = useSharedValue(0.6);
 
@@ -397,7 +398,7 @@ export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel, chronotype, ac
          <Animated.View style={[
            styles.coreAura,
            useAnimatedStyle(() => ({
-             transform: [{ scale: coreScale.value * (1 + achievementStars * 0.05) }],
+             transform: [{ scale: withSpring(coreScale.value * (1 + (achievementStars?.value || 0) * 0.05)) }],
              opacity: coreOpacity.value,
            }))
          ]} />

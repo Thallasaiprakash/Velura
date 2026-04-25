@@ -59,8 +59,7 @@
           }
         }
       ],
-      "./plugins/android-unlock-plugin",
-  
+      "./plugins/android-unlock-plugin"
     ],
     "experiments": {
       "typedRoutes": true

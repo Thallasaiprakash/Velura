@@ -131,6 +131,16 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
             <Stop offset="50%" stopColor="#FDA4AF" stopOpacity="0.3" />
             <Stop offset="100%" stopColor="#FDA4AF" stopOpacity="0" />
           </LinearGradient>
+          <RadialGradient id="gargantuaCore" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor="#000" stopOpacity="1" />
+            <Stop offset="90%" stopColor="#000" stopOpacity="1" />
+            <Stop offset="100%" stopColor="#FFF" stopOpacity="0.8" />
+          </RadialGradient>
+          <RadialGradient id="accretionDisk" cx="50%" cy="50%" r="50%">
+            <Stop offset="0%" stopColor="#f59e0b" stopOpacity="0.8" />
+            <Stop offset="40%" stopColor="#f59e0b" stopOpacity="0.4" />
+            <Stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+          </RadialGradient>
         </Defs>
 
         {/* Dynamic Light Layers */}
@@ -152,12 +162,24 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
           ))}
         </G>
 
-        {/* CENTRAL PLANET (Earth-like Focus) */}
+        {/* CENTRAL FOCUS (Gargantua-inspired Black Hole) */}
         <G x={width / 2} y={height * 0.55}>
-          <AnimatedCircle fill="url(#atmosGlow)" animatedProps={animatedAtmosphereProps} />
-          <Circle r={width * 0.13} fill="url(#planetBody)" />
-          <PlanetClouds size={width * 0.13} rotation={planetRotation} />
-          <Circle r={width * 0.13} fill="black" fillOpacity="0.3" cx={width * 0.02} cy={width * 0.02} />
+          {/* Accretion Disk / Gravitational Lens */}
+          <AnimatedG animatedProps={useAnimatedProps(() => ({
+            opacity: 0.6,
+            transform: `scale(${withRepeat(withTiming(1.1, { duration: 4000 }), -1, true)}) rotate(-5)`
+          }))}>
+             <Ellipse rx={width * 0.4} ry={width * 0.08} fill="url(#accretionDisk)" />
+          </AnimatedG>
+          
+          <Circle r={width * 0.15} fill="url(#atmosGlow)" />
+          <Circle r={width * 0.11} fill="url(#gargantuaCore)" />
+          <PlanetClouds size={width * 0.11} rotation={planetRotation} />
+          
+          {/* Subtle distorted secondary disk */}
+          <G transform="rotate(170)">
+            <Ellipse rx={width * 0.35} ry={width * 0.04} fill="url(#accretionDisk)" opacity={0.3} />
+          </G>
         </G>
       </Svg>
     </View>
