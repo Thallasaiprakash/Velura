@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   AppState,
+  ActivityIndicator,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -950,5 +951,30 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: Theme.fontSize.xs,
     marginTop: 2
-  }
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  loadingText: {
+    color: Colors.textPrimary,
+    fontSize: Theme.fontSize.lg,
+    fontWeight: Theme.fontWeight.bold,
+    marginTop: 24,
+    letterSpacing: 0.5,
+  },
+  loadingSubtext: {
+    color: Colors.textMuted,
+    fontSize: Theme.fontSize.sm,
+    marginTop: 8,
+    opacity: 0.8,
+  },
 });

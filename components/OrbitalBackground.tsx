@@ -8,10 +8,7 @@ import Svg, {
   G, 
   Ellipse,
   Rect,
-  Filter,
-  FeGaussianBlur,
-  FeMerge,
-  FeMergeNode
+  LinearGradient
 } from 'react-native-svg';
 import Animated, { 
   useSharedValue, 

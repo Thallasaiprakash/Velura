@@ -68,7 +68,7 @@ export default function TabLayout() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <StatusBar style="light" backgroundColor="transparent" translucent />
       <OrbitalBackground 
         achievementCount={achievementStars} 
         variant="home"
