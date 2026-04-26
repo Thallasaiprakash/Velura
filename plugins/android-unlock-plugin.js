@@ -216,11 +216,6 @@ public class UnlockReceiver extends BroadcastReceiver {
 function getTaskAlarmReceiverCode() {
   return `package com.saiprakash77.velura;
 
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.util.Log;
-
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
