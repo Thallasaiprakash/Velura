@@ -7,7 +7,10 @@ import Svg, {
   Stop, 
   G, 
   Ellipse,
-  LinearGradient
+  LinearGradient,
+  Path,
+  Filter,
+  GaussianBlur
 } from 'react-native-svg';
 import Animated, { 
   useSharedValue, 
@@ -24,6 +27,7 @@ const { width, height } = Dimensions.get('window');
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedG = Animated.createAnimatedComponent(G);
 const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 interface OrbitalBackgroundProps {
   achievementCount?: Animated.SharedValue<number> | number;
@@ -31,19 +35,19 @@ interface OrbitalBackgroundProps {
 }
 
 /**
- * OrbitalBackground - Cinematic Gargantua Edition
- * Optimized for native stability and visual excellence.
+ * OrbitalBackground - Award Winning "Interstellar" Edition
+ * Features a high-fidelity Gargantua black hole with Gravitational Lensing.
  */
 export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({ 
   achievementCount = 0,
   variant = 'home'
 }) => {
   const nebulaPulse = useSharedValue(0.3);
-  const planetRotation = useSharedValue(0);
   const diskScale = useSharedValue(1);
   const diskRotation = useSharedValue(0);
+  const lensingOpacity = useSharedValue(0.4);
 
-  // Convert achievementCount to a SharedValue for internal consistency if it's a number
+  // Convert achievementCount to a SharedValue for internal consistency
   const achievementSV = typeof achievementCount === 'number' 
     ? useSharedValue(achievementCount) 
     : achievementCount;
@@ -58,48 +62,52 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
       true
     );
 
-    planetRotation.value = withRepeat(
-      withTiming(360, { duration: 180000, easing: Easing.linear }),
-      -1,
-      false
-    );
-
     diskScale.value = withRepeat(
       withSequence(
-        withTiming(1.08, { duration: 5000, easing: Easing.inOut(Easing.sin) }),
-        withTiming(1.0, { duration: 5000, easing: Easing.inOut(Easing.sin) })
+        withTiming(1.04, { duration: 4000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(1.0, { duration: 4000, easing: Easing.inOut(Easing.sin) })
       ),
       -1,
       true
     );
 
     diskRotation.value = withRepeat(
-      withTiming(360, { duration: 40000, easing: Easing.linear }),
+      withTiming(360, { duration: 60000, easing: Easing.linear }),
       -1,
       false
+    );
+
+    lensingOpacity.value = withRepeat(
+      withSequence(
+        withTiming(0.6, { duration: 3000, easing: Easing.inOut(Easing.sin) }),
+        withTiming(0.4, { duration: 3000, easing: Easing.inOut(Easing.sin) })
+      ),
+      -1,
+      true
     );
   }, []);
 
   const stars = useMemo(() => {
-    return Array.from({ length: 60 }).map((_, i) => ({
+    return Array.from({ length: 80 }).map((_, i) => ({
       id: i,
       x: Math.random() * width,
       y: Math.random() * height,
-      size: Math.random() * 1.2 + 0.2,
-      opacity: Math.random() * 0.5 + 0.1,
+      size: Math.random() * 1.5 + 0.2,
+      opacity: Math.random() * 0.6 + 0.2,
+      color: i % 10 === 0 ? '#93C5FD' : i % 15 === 0 ? '#FDBA74' : '#FFFFFF',
       twinkleDelay: Math.random() * 5000,
     }));
   }, []);
 
   const orbits = [
     { rx: width * 0.45, ry: height * 0.18, planetSize: 4, color: '#E2E8F0', duration: 45000, delay: 0 },
-    { rx: width * 0.75, ry: height * 0.3, planetSize: 7, color: '#FDA4AF', duration: 75000, delay: 3000, hasRing: true },
-    { rx: width * 1.1, ry: height * 0.5, planetSize: 10, color: '#93C5FD', duration: 110000, delay: 1500 },
+    { rx: width * 0.75, ry: height * 0.3, planetSize: 6, color: '#FDA4AF', duration: 75000, delay: 3000, hasRing: true },
+    { rx: width * 1.1, ry: height * 0.5, planetSize: 9, color: '#93C5FD', duration: 110000, delay: 1500 },
   ];
 
   return (
     <View style={styles.container}>
-      {/* Background Layer - High Fidelity Galaxy */}
+      {/* Background Layer - High Fidelity Galaxy Generated Image */}
       <Image 
         source={require('../assets/images/cosmic_bg.png')} 
         style={styles.bgImage}
@@ -110,44 +118,36 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
 
       <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={styles.svg}>
         <Defs>
+          <Filter id="glow">
+            <GaussianBlur stdDeviation="3" result="coloredBlur" />
+          </Filter>
+
           <RadialGradient id="nebulaBlue" cx="20%" cy="30%" r="80%">
-            <Stop offset="0%" stopColor="#1E3A8A" stopOpacity="0.4" />
-            <Stop offset="100%" stopColor="#1E3A8A" stopOpacity="0" />
-          </RadialGradient>
-          <RadialGradient id="nebulaGold" cx="80%" cy="70%" r="80%">
-            <Stop offset="0%" stopColor="#78350F" stopOpacity="0.3" />
-            <Stop offset="100%" stopColor="#78350F" stopOpacity="0" />
+            <Stop offset="0%" stopColor="#1E40AF" stopOpacity="0.3" />
+            <Stop offset="100%" stopColor="#1E40AF" stopOpacity="0" />
           </RadialGradient>
           
           <RadialGradient id="gargantuaSingularity" cx="50%" cy="50%" r="50%">
             <Stop offset="0%" stopColor="#000" stopOpacity="1" />
-            <Stop offset="92%" stopColor="#000" stopOpacity="1" />
-            <Stop offset="100%" stopColor="#FFF" stopOpacity="0.9" />
+            <Stop offset="90%" stopColor="#000" stopOpacity="1" />
+            <Stop offset="100%" stopColor="#FFF" stopOpacity="0.8" />
           </RadialGradient>
 
           <RadialGradient id="accretionGlow" cx="50%" cy="50%" r="50%">
-            <Stop offset="0%" stopColor="#F59E0B" stopOpacity="0.9" />
-            <Stop offset="40%" stopColor="#D97706" stopOpacity="0.5" />
-            <Stop offset="100%" stopColor="#B45309" stopOpacity="0" />
+            <Stop offset="0%" stopColor="#FBBF24" stopOpacity="0.9" />
+            <Stop offset="40%" stopColor="#D97706" stopOpacity="0.6" />
+            <Stop offset="100%" stopColor="#78350F" stopOpacity="0" />
           </RadialGradient>
 
           <RadialGradient id="eventHorizon" cx="50%" cy="50%" r="50%">
             <Stop offset="0%" stopColor="#FFF" stopOpacity="0" />
-            <Stop offset="85%" stopColor="#60A5FA" stopOpacity="0.1" />
-            <Stop offset="100%" stopColor="#60A5FA" stopOpacity="0.4" />
+            <Stop offset="85%" stopColor="#60A5FA" stopOpacity="0.05" />
+            <Stop offset="100%" stopColor="#60A5FA" stopOpacity="0.3" />
           </RadialGradient>
-
-          <LinearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <Stop offset="0%" stopColor="#FDA4AF" stopOpacity="0" />
-            <Stop offset="50%" stopColor="#FDA4AF" stopOpacity="0.4" />
-            <Stop offset="100%" stopColor="#FDA4AF" stopOpacity="0" />
-          </LinearGradient>
         </Defs>
 
         {/* Dynamic Nebulae */}
-        <AnimatedCircle cx={width * 0.2} cy={height * 0.3} r={width * 0.8} fill="url(#nebulaBlue)" 
-          animatedProps={useAnimatedProps(() => ({ opacity: nebulaPulse.value }))} />
-        <AnimatedCircle cx={width * 0.8} cy={height * 0.7} r={width * 0.8} fill="url(#nebulaGold)" 
+        <AnimatedCircle cx={width * 0.2} cy={height * 0.2} r={width * 0.8} fill="url(#nebulaBlue)" 
           animatedProps={useAnimatedProps(() => ({ opacity: nebulaPulse.value }))} />
 
         {/* Stars Layer */}
@@ -155,34 +155,46 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
           <TwinklingStar key={star.id} {...star} />
         ))}
 
-        {/* Distant Orbits */}
+        {/* Background Orbits */}
         <G x={width / 2} y={height / 2}>
           {orbits.map((orb, i) => (
             <CelestialOrbital key={i} {...orb} />
           ))}
-          
-          {/* Achievement particles mapped to the center */}
           <AchievementField achievementCount={achievementSV} />
         </G>
 
-        {/* CENTRAL GARGANTUA */}
+        {/* THE GARGANTUA SYSTEM (Central Focus) */}
         <G x={width / 2} y={height * 0.52}>
-          {/* Main Accretion Disk */}
+          
+          {/* 1. Background Lensing (Light warped behind the black hole) */}
+          <AnimatedPath 
+            d={`M ${-width * 0.4} 0 A ${width * 0.4} ${width * 0.15} 0 1 1 ${width * 0.4} 0`}
+            fill="none"
+            stroke="url(#accretionGlow)"
+            strokeWidth="4"
+            animatedProps={useAnimatedProps(() => ({ opacity: lensingOpacity.value * 0.4 }))}
+          />
+
+          {/* 2. Main Accretion Disk */}
           <AnimatedAccretionDisk scale={diskScale} rotation={diskRotation} />
           
-          {/* Gravitational Lensing (Warped Ring) */}
-          <G transform="rotate(-15)">
-             <Ellipse rx={width * 0.38} ry={width * 0.04} fill="url(#accretionGlow)" opacity={0.2} />
-          </G>
+          {/* 3. Foreground Lensing (Light warped in front of the black hole) */}
+          <AnimatedPath 
+            d={`M ${-width * 0.4} 0 A ${width * 0.4} ${width * 0.12} 0 1 0 ${width * 0.4} 0`}
+            fill="none"
+            stroke="url(#accretionGlow)"
+            strokeWidth="3"
+            animatedProps={useAnimatedProps(() => ({ opacity: lensingOpacity.value }))}
+          />
 
-          {/* Event Horizon Glow */}
-          <Circle r={width * 0.16} fill="url(#eventHorizon)" />
+          {/* 4. Event Horizon Distortion */}
+          <Circle r={width * 0.17} fill="url(#eventHorizon)" />
           
-          {/* The Singularity */}
-          <Circle r={width * 0.13} fill="url(#gargantuaSingularity)" />
+          {/* 5. The Singularity (Absolute Black) */}
+          <Circle r={width * 0.14} fill="url(#gargantuaSingularity)" />
           
-          {/* Subtle Photon Sphere */}
-          <Circle r={width * 0.132} fill="none" stroke="#FFF" strokeOpacity="0.15" strokeWidth="0.5" />
+          {/* 6. Photon Sphere (Intense white edge) */}
+          <Circle r={width * 0.142} fill="none" stroke="#FFF" strokeOpacity="0.2" strokeWidth="1" />
         </G>
       </Svg>
     </View>
@@ -191,33 +203,34 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
 
 const AnimatedAccretionDisk: React.FC<{ scale: Animated.SharedValue<number>, rotation: Animated.SharedValue<number> }> = ({ scale, rotation }) => {
   const animatedProps = useAnimatedProps(() => {
-    // construction of transform string in a more stable way for native
-    const s = scale.value.toFixed(3);
-    const r = rotation.value.toFixed(1);
+    const s = (scale.value || 1).toFixed(3);
+    const r = (rotation.value || 0).toFixed(1);
     return {
       transform: `scale(${s}) rotate(${r})`,
-      opacity: 0.7
+      opacity: 0.8
     };
   });
 
   return (
     <AnimatedG animatedProps={animatedProps}>
-       <Ellipse rx={width * 0.45} ry={width * 0.07} fill="url(#accretionGlow)" />
-       <Ellipse rx={width * 0.42} ry={width * 0.05} fill="#FFF" opacity={0.2} />
+       {/* Accretion Disk Layers */}
+       <Ellipse rx={width * 0.48} ry={width * 0.08} fill="url(#accretionGlow)" opacity={0.6} />
+       <Ellipse rx={width * 0.44} ry={width * 0.05} fill="#FFF" opacity={0.15} />
+       <Ellipse rx={width * 0.3} ry={width * 0.04} fill="#FCD34D" opacity={0.3} />
     </AnimatedG>
   );
 };
 
-const TwinklingStar: React.FC<{ x: number, y: number, size: number, opacity: number, twinkleDelay: number }> = ({ x, y, size, opacity, twinkleDelay }) => {
+const TwinklingStar: React.FC<{ x: number, y: number, size: number, opacity: number, color: string, twinkleDelay: number }> = ({ x, y, size, opacity, color, twinkleDelay }) => {
   const opac = useSharedValue(opacity);
   useEffect(() => {
     opac.value = withDelay(
       twinkleDelay,
-      withRepeat(withTiming(opacity * 0.2, { duration: 3000 + Math.random() * 2000 }), -1, true)
+      withRepeat(withTiming(opacity * 0.1, { duration: 4000 + Math.random() * 2000 }), -1, true)
     );
   }, []);
-  const animatedProps = useAnimatedProps(() => ({ opacity: opac.value }));
-  return <AnimatedCircle cx={x} cy={y} r={size} fill="white" animatedProps={animatedProps} />;
+  const animatedProps = useAnimatedProps(() => ({ opacity: (opac.value || 0).toFixed(2) }));
+  return <AnimatedCircle cx={x} cy={y} r={size} fill={color} animatedProps={animatedProps} />;
 };
 
 const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, color: string, duration: number, delay: number, hasRing?: boolean }> = ({ 
@@ -229,7 +242,7 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
   }, []);
 
   const animatedProps = useAnimatedProps(() => {
-    const rad = (rot.value * Math.PI) / 180;
+    const rad = ((rot.value || 0) * Math.PI) / 180;
     const tx = (Math.cos(rad) * rx).toFixed(2);
     const ty = (Math.sin(rad) * ry).toFixed(2);
     return {
@@ -239,30 +252,31 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
 
   return (
     <G>
-      <Ellipse rx={rx} ry={ry} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" strokeDasharray="3 6" />
+      <Ellipse rx={rx} ry={ry} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="4 8" />
       <AnimatedG animatedProps={animatedProps}>
         {hasRing && (
           <Ellipse 
-            rx={planetSize * 2} 
-            ry={planetSize * 0.7} 
+            rx={planetSize * 2.2} 
+            ry={planetSize * 0.6} 
             fill="none" 
-            stroke="url(#ringGrad)" 
-            strokeWidth="1" 
-            transform="rotate(20)" 
+            stroke="rgba(253, 164, 175, 0.4)" 
+            strokeWidth="0.8" 
+            transform="rotate(25)" 
           />
         )}
         <Circle r={planetSize} fill={color} />
+        {/* Planet Glow */}
+        <Circle r={planetSize + 2} fill={color} opacity={0.2} />
       </AnimatedG>
     </G>
   );
 };
 
 const AchievementField: React.FC<{ achievementCount: Animated.SharedValue<number> }> = ({ achievementCount }) => {
-  // Use a fixed array for rendering stability, control visibility via animated props
   return (
     <G>
-      {Array.from({ length: 20 }).map((_, i) => (
-        <AchievementParticle key={i} index={i} total={20} achievementCount={achievementCount} />
+      {Array.from({ length: 24 }).map((_, i) => (
+        <AchievementParticle key={i} index={i} total={24} achievementCount={achievementCount} />
       ))}
     </G>
   );
@@ -270,28 +284,28 @@ const AchievementField: React.FC<{ achievementCount: Animated.SharedValue<number
 
 const AchievementParticle: React.FC<{ index: number, total: number, achievementCount: Animated.SharedValue<number> }> = ({ index, total, achievementCount }) => {
   const rot = useSharedValue((index / total) * 360);
-  const orbitX = width * 0.22;
-  const orbitY = height * 0.1;
+  const orbitX = width * 0.25;
+  const orbitY = height * 0.12;
   
   useEffect(() => {
-    rot.value = withRepeat(withTiming(rot.value + 360, { duration: 20000 + index * 1000, easing: Easing.linear }), -1, false);
+    rot.value = withRepeat(withTiming(rot.value + 360, { duration: 25000 + index * 800, easing: Easing.linear }), -1, false);
   }, []);
 
   const animatedProps = useAnimatedProps(() => {
-    const rad = (rot.value * Math.PI) / 180;
+    const rad = ((rot.value || 0) * Math.PI) / 180;
     const tx = (Math.cos(rad) * orbitX).toFixed(2);
     const ty = (Math.sin(rad) * orbitY).toFixed(2);
-    const isVisible = achievementCount.value > index;
+    const isVisible = (achievementCount.value || 0) > index;
     return {
       transform: `translate(${tx}, ${ty})`,
-      opacity: isVisible ? 0.8 : 0,
+      opacity: isVisible ? 0.9 : 0,
     };
   });
 
   return (
     <AnimatedG animatedProps={animatedProps}>
-      <Circle r={1.5} fill="#FCD34D" />
-      <Circle r={3} fill="#FCD34D" opacity={0.3} />
+      <Circle r={1.2} fill="#FDE68A" />
+      <Circle r={4} fill="#FDE68A" opacity={0.25} />
     </AnimatedG>
   );
 };
@@ -308,7 +322,7 @@ const styles = StyleSheet.create({
   },
   shade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   svg: {
     ...StyleSheet.absoluteFillObject,

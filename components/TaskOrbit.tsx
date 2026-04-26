@@ -51,6 +51,8 @@ const PLANET_STYLE = {
   low: { r: 12, texture: '🌑' },
 };
 
+const ORBIT_CENTER = 0; // Relative to the orbitCenter View
+
 interface TaskOrbitProps {
   tasks: Task[];
   onCompleteTask: (taskId: string) => void;
@@ -60,6 +62,8 @@ interface TaskOrbitProps {
 }
 
 const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype }: any) => {
+  if (!task) return null;
+
   const isBioDip = chronotype && task.timeTag ? isTimeInBioDip(task.timeTag, chronotype) : false;
   
   const rotation = useSharedValue(0);
@@ -112,12 +116,14 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   const colors = PLANET_COLORS[task.priority as keyof typeof PLANET_COLORS] || PLANET_COLORS.normal;
 
   const derivedX = useDerivedValue(() => {
-    const rad = (rotation.value * Math.PI) / 180;
+    const rotVal = rotation.value || 0;
+    const rad = (rotVal * Math.PI) / 180;
     return Math.cos(rad) * radius;
   });
 
   const derivedY = useDerivedValue(() => {
-    const rad = (rotation.value * Math.PI) / 180;
+    const rotVal = rotation.value || 0;
+    const rad = (rotVal * Math.PI) / 180;
     return Math.sin(rad) * radius;
   });
 
@@ -125,22 +131,29 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   const springY = useDerivedValue(() => withSpring(derivedY.value, { damping: 15, stiffness: 100 }));
 
   const animatedStyle = useAnimatedStyle(() => {
+    const s = scale.value || 0;
+    const ps = priorityScale.value || 1;
+    const tx = translateX.value || 0;
+    const ty = translateY.value || 0;
+    const sx = springX.value || 0;
+    const sy = springY.value || 0;
+
     if (isCompleting.value) {
        return {
          transform: [
-           { translateX: translateX.value },
-           { translateY: translateY.value },
-           { scale: interpolate(scale.value, [1, 0], [1, 2], Extrapolate.CLAMP) }
+           { translateX: tx },
+           { translateY: ty },
+           { scale: interpolate(s, [1, 0], [1, 2], Extrapolate.CLAMP) }
          ],
-         opacity: scale.value,
+         opacity: s,
        };
     }
 
     if (isDragging.value) {
       return {
         transform: [
-          { translateX: translateX.value },
-          { translateY: translateY.value },
+          { translateX: tx },
+          { translateY: ty },
           { scale: 1.2 }
         ],
         position: 'absolute',
@@ -149,14 +162,14 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
     }
 
     // Keep values in sync for drag start
-    translateX.value = springX.value;
-    translateY.value = springY.value;
+    translateX.value = sx;
+    translateY.value = sy;
 
     return {
       transform: [
-        { translateX: springX.value },
-        { translateY: springY.value },
-        { scale: scale.value * priorityScale.value }
+        { translateX: sx },
+        { translateY: sy },
+        { scale: s * ps }
       ],
       position: 'absolute',
       zIndex: 1,
@@ -175,8 +188,8 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (_, ctx: any) => {
-      ctx.startX = translateX.value;
-      ctx.startY = translateY.value;
+      ctx.startX = translateX.value || 0;
+      ctx.startY = translateY.value || 0;
       isDragging.value = true;
     },
     onActive: (event, ctx) => {
@@ -184,7 +197,9 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
       translateY.value = ctx.startY + event.translationY;
     },
     onEnd: () => {
-      const distFromCenter = Math.sqrt(translateX.value ** 2 + translateY.value ** 2);
+      const tx = translateX.value || 0;
+      const ty = translateY.value || 0;
+      const distFromCenter = Math.sqrt(tx ** 2 + ty ** 2);
       isDragging.value = false;
       if (distFromCenter < 60) {
         runOnJS(handleDragSubmit)();
@@ -192,7 +207,14 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
     },
   });
 
-  const pStyle = PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE];
+  const pStyle = PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE] || PLANET_STYLE.normal;
+
+  const planetAnimatedProps = useAnimatedProps(() => {
+    const rot = (selfRotation.value || 0).toFixed(1);
+    return {
+      transform: `rotate(${rot} 50 50)`
+    };
+  });
 
   return (
     <Animated.View style={animatedStyle}>
@@ -221,9 +243,7 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
                   {/* Atmospheric Glow */}
                   <Circle cx="50" cy="50" r={pStyle.r + 6} fill={`url(#glow-${task.id})`} />
 
-                  <AnimatedG animatedProps={useAnimatedProps(() => ({
-                    transform: `rotate(${selfRotation.value.toFixed(1)} 50 50)`
-                  }))}>
+                  <AnimatedG animatedProps={planetAnimatedProps}>
                     <Circle cx="50" cy="50" r={pStyle.r} fill={`url(#grad-${task.id})`} />
                     {/* Planet texture/features */}
                     <Circle cx="42" cy="42" r="3" fill="rgba(255,255,255,0.15)" />
@@ -273,17 +293,22 @@ export function TaskOrbit({ tasks = [], onCompleteTask, onEnterTunnel, chronotyp
     );
   }, []);
 
-  const pendingTasks = useMemo(() => (tasks || []).filter(t => !t.completed), [tasks]);
+  const pendingTasks = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter(t => t && !t.completed);
+  }, [tasks]);
   
   const urgent = pendingTasks.filter(t => t.priority === 'urgent');
   const normal = pendingTasks.filter(t => t.priority === 'normal');
   const low = pendingTasks.filter(t => t.priority === 'low');
 
   const auraStyle = useAnimatedStyle(() => {
+    const cs = coreScale.value || 1;
+    const co = coreOpacity.value || 0.6;
     const achievementBoost = 1 + (achievementStars?.value || 0) * 0.05;
     return {
-      transform: [{ scale: coreScale.value * achievementBoost }],
-      opacity: coreOpacity.value,
+      transform: [{ scale: cs * achievementBoost }],
+      opacity: co,
     };
   });
 
@@ -291,9 +316,9 @@ export function TaskOrbit({ tasks = [], onCompleteTask, onEnterTunnel, chronotyp
     <View style={styles.container}>
       {/* Background Orbit Lines */}
       <Svg style={StyleSheet.absoluteFill}>
-        <Circle cx={ORBIT_CENTER} cy={ORBIT_CENTER} r={RADII.urgent} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 4" />
-        <Circle cx={ORBIT_CENTER} cy={ORBIT_CENTER} r={RADII.normal} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" strokeDasharray="4 8" />
-        <Circle cx={ORBIT_CENTER} cy={ORBIT_CENTER} r={RADII.low} fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="1" strokeDasharray="6 12" />
+        <Circle cx={width / 2} cy={(width * 1.2) / 2} r={RADII.urgent} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 4" />
+        <Circle cx={width / 2} cy={(width * 1.2) / 2} r={RADII.normal} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" strokeDasharray="4 8" />
+        <Circle cx={width / 2} cy={(width * 1.2) / 2} r={RADII.low} fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="1" strokeDasharray="6 12" />
       </Svg>
 
       <View style={styles.orbitCenter}>
