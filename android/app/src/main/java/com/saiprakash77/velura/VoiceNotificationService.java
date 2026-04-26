@@ -135,7 +135,11 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
                 Log.d(TAG, "Speech finished, cleaning up");
                 restoreVolume();
                 abandonAudioFocus();
-                stopForeground(true);
+                if (android.os.Build.VERSION.SDK_INT >= 24) { // Service.STOP_FOREGROUND_REMOVE
+                    stopForeground(Service.STOP_FOREGROUND_REMOVE);
+                } else {
+                    stopForeground(true);
+                }
                 stopSelf();
             }).start();
         } else {

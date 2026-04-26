@@ -161,6 +161,7 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
             <CelestialOrbital key={i} {...orb} />
           ))}
           <AchievementField achievementCount={achievementSV} />
+          <CosmicDust />
         </G>
 
         {/* THE GARGANTUA SYSTEM (Central Focus) */}
@@ -203,8 +204,10 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
 
 const AnimatedAccretionDisk: React.FC<{ scale: Animated.SharedValue<number>, rotation: Animated.SharedValue<number> }> = ({ scale, rotation }) => {
   const animatedProps = useAnimatedProps(() => {
-    const s = (scale.value || 1).toFixed(3);
-    const r = (rotation.value || 0).toFixed(1);
+    const sVal = scale.value || 1;
+    const rVal = rotation.value || 0;
+    const s = (isNaN(sVal) ? 1 : sVal).toFixed(3);
+    const r = (isNaN(rVal) ? 0 : rVal).toFixed(1);
     return {
       transform: `scale(${s}) rotate(${r})`,
       opacity: 0.8
@@ -229,7 +232,10 @@ const TwinklingStar: React.FC<{ x: number, y: number, size: number, opacity: num
       withRepeat(withTiming(opacity * 0.1, { duration: 4000 + Math.random() * 2000 }), -1, true)
     );
   }, []);
-  const animatedProps = useAnimatedProps(() => ({ opacity: (opac.value || 0).toFixed(2) }));
+  const animatedProps = useAnimatedProps(() => {
+    const oVal = opac.value || 0;
+    return { opacity: isNaN(oVal) ? 0 : oVal.toFixed(2) };
+  });
   return <AnimatedCircle cx={x} cy={y} r={size} fill={color} animatedProps={animatedProps} />;
 };
 
@@ -306,6 +312,51 @@ const AchievementParticle: React.FC<{ index: number, total: number, achievementC
     <AnimatedG animatedProps={animatedProps}>
       <Circle r={1.2} fill="#FDE68A" />
       <Circle r={4} fill="#FDE68A" opacity={0.25} />
+    </AnimatedG>
+  );
+};
+
+const CosmicDust: React.FC = () => {
+  const particles = useMemo(() => {
+    return Array.from({ length: 40 }).map((_, i) => ({
+      id: i,
+      x: (Math.random() - 0.5) * width * 2,
+      y: (Math.random() - 0.5) * height * 2,
+      size: Math.random() * 2 + 0.5,
+      duration: 20000 + Math.random() * 20000,
+    }));
+  }, []);
+
+  return (
+    <G>
+      {particles.map(p => (
+        <DustParticle key={p.id} {...p} />
+      ))}
+    </G>
+  );
+};
+
+const DustParticle: React.FC<{ x: number, y: number, size: number, duration: number }> = ({ x, y, size, duration }) => {
+  const moveX = useSharedValue(x);
+  const moveY = useSharedValue(y);
+
+  useEffect(() => {
+    moveX.value = withRepeat(withTiming(x + (Math.random() - 0.5) * 100, { duration, easing: Easing.inOut(Easing.sin) }), -1, true);
+    moveY.value = withRepeat(withTiming(y + (Math.random() - 0.5) * 100, { duration, easing: Easing.inOut(Easing.sin) }), -1, true);
+  }, []);
+
+  const animatedProps = useAnimatedProps(() => {
+    const tx = (moveX.value || 0).toFixed(2);
+    const ty = (moveY.value || 0).toFixed(2);
+    return {
+      transform: `translate(${tx}, ${ty})`,
+      opacity: 0.15
+    };
+  });
+
+  return (
+    <AnimatedG animatedProps={animatedProps}>
+       <Circle r={size} fill="#FFF" />
     </AnimatedG>
   );
 };

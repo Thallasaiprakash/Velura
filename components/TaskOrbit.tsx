@@ -210,7 +210,8 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   const pStyle = PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE] || PLANET_STYLE.normal;
 
   const planetAnimatedProps = useAnimatedProps(() => {
-    const rot = (selfRotation.value || 0).toFixed(1);
+    const rotVal = selfRotation.value || 0;
+    const rot = isNaN(rotVal) ? "0" : rotVal.toFixed(1);
     return {
       transform: `rotate(${rot} 50 50)`
     };
@@ -365,11 +366,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'absolute',
-    shadowColor: '#a78bfa',
+    shadowColor: '#fff',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 20,
+    shadowRadius: 30,
+    elevation: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   nowText: {
     color: '#000',
