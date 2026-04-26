@@ -15,19 +15,17 @@ import Animated, {
   withSequence,
   useDerivedValue,
   useAnimatedProps,
-  withDecay,
 } from 'react-native-reanimated';
 import { TapGestureHandler, PanGestureHandler, State } from 'react-native-gesture-handler';
-import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
-const AnimatedG = Animated.createAnimatedComponent(G);
+import Svg, { Circle, Defs, RadialGradient, Stop, G, Ellipse, LinearGradient } from 'react-native-svg';
 import { Task, Chronotype } from '../services/taskService';
 import { Colors } from '../constants/colors';
-import { Theme } from '../constants/theme';
 import { isTimeInBioDip } from '../services/auraService';
 import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
-const ORBIT_CENTER = width / 2;
+const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const RADII = {
   urgent: 80,
@@ -41,113 +39,12 @@ const SPEEDS = {
   low: 30000,
 };
 
-const Particle = ({ i, color }: { i: number, color: string }) => {
-  const angle = (i / 15) * Math.PI * 2 + (Math.random() * 0.5);
-  const distance = useSharedValue(0);
-  const opacity = useSharedValue(1);
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    distance.value = withDelay(i * 10, withTiming(80 + Math.random() * 60, { 
-      duration: 1000, 
-      easing: Easing.out(Easing.back(1.5)) 
-    }));
-    opacity.value = withDelay(500, withTiming(0, { duration: 500 }));
-    scale.value = withTiming(1.5, { duration: 200 }, () => {
-      scale.value = withTiming(0, { duration: 800 });
-    });
-  }, [i]);
-
-  const style = useAnimatedStyle(() => ({
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: color,
-    shadowColor: color,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    transform: [
-      { translateX: Math.cos(angle) * distance.value },
-      { translateY: Math.sin(angle) * distance.value },
-      { scale: scale.value }
-    ],
-    opacity: opacity.value,
-  }));
-
-  return <Animated.View style={style} />;
-};
-
-const StarShower = ({ color }: { color: string }) => {
-  return (
-    <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
-      {Array.from({ length: 15 }).map((_, i) => (
-        <Particle key={i} i={i} color={color} />
-      ))}
-    </View>
-  );
-};
-
-const OrbitalDust = ({ radius, count, color }: { radius: number; count: number; color?: string }) => {
-  const particles = useMemo(() => {
-    return Array.from({ length: count }).map((_, i) => ({
-      id: i,
-      angle: (i / count) * Math.PI * 2 + Math.random() * 0.5,
-      initialOpacity: Math.random() * 0.5 + 0.1,
-      initialScale: Math.random() * 0.5 + 0.5,
-      duration: 2000 + Math.random() * 3000,
-    }));
-  }, [count, radius]);
-
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {particles.map((p) => (
-        <DustParticle key={p.id} {...p} radius={radius} color={color} />
-      ))}
-    </View>
-  );
-};
-
-const DustParticle = ({ radius, angle, initialOpacity, initialScale, duration, color }: any) => {
-  const opacity = useSharedValue(initialOpacity);
-  
-  useEffect(() => {
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(initialOpacity * 2, { duration, easing: Easing.inOut(Easing.sin) }),
-        withTiming(initialOpacity, { duration, easing: Easing.inOut(Easing.sin) })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    position: 'absolute',
-    width: 2,
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: color || '#fff',
-    opacity: opacity.value,
-    transform: [
-      { translateX: Math.cos(angle) * (radius + 2) },
-      { translateY: Math.sin(angle) * (radius + 2) },
-      { scale: initialScale }
-    ],
-  }));
-
-  return <Animated.View style={style} />;
-};
-
-
 const PLANET_COLORS = {
   urgent: ['#fde047', '#f59e0b'], // The North Star (Golden/Sun)
   normal: ['#00d2ff', '#3a7bd5'], // Earth/Neptune
   low: ['#f8fafc', '#64748b'],    // Moon/Asteroid
 };
 
-// Unique planet styles
 const PLANET_STYLE = {
   urgent: { r: 16, texture: '🌋' },
   normal: { r: 18, texture: '🌊' },
@@ -177,10 +74,9 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   useEffect(() => {
     scale.value = withSpring(1);
     const baseSpeed = SPEEDS[task.priority as keyof typeof SPEEDS] || SPEEDS.normal;
-    // Slow down in bio-dip zones
     const speed = isBioDip ? baseSpeed * 1.8 : baseSpeed;
     
-    const initialRot = (360 / total) * index;
+    const initialRot = (360 / Math.max(1, total)) * index;
     rotation.value = initialRot;
     
     rotation.value = withRepeat(
@@ -192,7 +88,6 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
       false
     );
 
-    // Self rotation for "alive" feel
     selfRotation.value = withRepeat(
       withTiming(360, { duration: 8000, easing: Easing.linear }),
       -1,
@@ -201,7 +96,6 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   }, [total, index, isBioDip]);
 
   useEffect(() => {
-    // Urgent pulsation for high priority tasks
     if (task.priority === 'urgent') {
       priorityScale.value = withRepeat(
         withSequence(
@@ -217,7 +111,6 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   const radius = RADII[task.priority as keyof typeof RADII] || RADII.normal;
   const colors = PLANET_COLORS[task.priority as keyof typeof PLANET_COLORS] || PLANET_COLORS.normal;
 
-  // Derive coordinates from rotation and radius
   const derivedX = useDerivedValue(() => {
     const rad = (rotation.value * Math.PI) / 180;
     return Math.cos(rad) * radius;
@@ -227,6 +120,9 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
     const rad = (rotation.value * Math.PI) / 180;
     return Math.sin(rad) * radius;
   });
+
+  const springX = useDerivedValue(() => withSpring(derivedX.value, { damping: 15, stiffness: 100 }));
+  const springY = useDerivedValue(() => withSpring(derivedY.value, { damping: 15, stiffness: 100 }));
 
   const animatedStyle = useAnimatedStyle(() => {
     if (isCompleting.value) {
@@ -252,14 +148,14 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
       };
     }
 
-    // Smoothly follow derived values
-    translateX.value = withSpring(derivedX.value, { damping: 15, stiffness: 100 });
-    translateY.value = withSpring(derivedY.value, { damping: 15, stiffness: 100 });
+    // Keep values in sync for drag start
+    translateX.value = springX.value;
+    translateY.value = springY.value;
 
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
+        { translateX: springX.value },
+        { translateY: springY.value },
         { scale: scale.value * priorityScale.value }
       ],
       position: 'absolute',
@@ -267,11 +163,8 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
     };
   });
 
-  const [showBurst, setShowBurst] = useState(false);
-
   const handleDragSubmit = () => {
     isCompleting.value = true;
-    setShowBurst(true);
     scale.value = withTiming(0, { duration: 500 }, (finished) => {
       if (finished) {
         runOnJS(onComplete)(task.id);
@@ -279,7 +172,6 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
     });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
-
 
   const gestureHandler = useAnimatedGestureHandler({
     onStart: (_, ctx: any) => {
@@ -300,9 +192,10 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
     },
   });
 
+  const pStyle = PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE];
+
   return (
     <Animated.View style={animatedStyle}>
-      {showBurst && <StarShower color={colors[0]} />}
       <PanGestureHandler onGestureEvent={gestureHandler}>
         <Animated.View>
           <TapGestureHandler 
@@ -319,26 +212,28 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
                       <Stop offset="0%" stopColor={isBioDip ? '#fbbf24' : colors[0]} stopOpacity="1" />
                       <Stop offset="100%" stopColor={isBioDip ? '#b45309' : colors[1]} stopOpacity="1" />
                     </RadialGradient>
+                    <RadialGradient id={`glow-${task.id}`} cx="50%" cy="50%" r="50%">
+                      <Stop offset="0%" stopColor={colors[0]} stopOpacity="0.4" />
+                      <Stop offset="100%" stopColor={colors[0]} stopOpacity="0" />
+                    </RadialGradient>
                   </Defs>
                   
-                  {/* Bio-Dip Warning Glow */}
-                  {isBioDip && (
-                    <Circle cx="50" cy="50" r={PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE].r + 4} fill="rgba(251, 191, 36, 0.15)" stroke="rgba(251, 191, 36, 0.3)" strokeWidth="0.5" />
-                  )}
+                  {/* Atmospheric Glow */}
+                  <Circle cx="50" cy="50" r={pStyle.r + 6} fill={`url(#glow-${task.id})`} />
 
                   <AnimatedG animatedProps={useAnimatedProps(() => ({
-                    transform: `rotate(${selfRotation.value} 50 50)`
+                    transform: `rotate(${selfRotation.value.toFixed(1)} 50 50)`
                   }))}>
-                    <Circle cx="50" cy="50" r={PLANET_STYLE[task.priority as keyof typeof PLANET_STYLE].r} fill={`url(#grad-${task.id})`} />
+                    <Circle cx="50" cy="50" r={pStyle.r} fill={`url(#grad-${task.id})`} />
                     {/* Planet texture/features */}
-                    <Circle cx="42" cy="42" r="3" fill="rgba(255,255,255,0.1)" />
+                    <Circle cx="42" cy="42" r="3" fill="rgba(255,255,255,0.15)" />
                     <Circle cx="58" cy="58" r="4" fill="rgba(0,0,0,0.1)" />
                   </AnimatedG>
                   
-                  {/* Subtle ring for low priority or bio-dip indicator */}
-                  {(task.priority === 'low' || isBioDip) && (
-                    <G transform="rotate(15 50 50)">
-                        <Circle cx="50" cy="50" r={isBioDip ? 22 : 18} fill="none" stroke={isBioDip ? "rgba(251, 191, 36, 0.4)" : "rgba(255,255,255,0.2)"} strokeWidth={isBioDip ? 1.5 : 1} />
+                  {/* Cinematic Rings */}
+                  {(task.priority === 'normal' || isBioDip) && (
+                    <G transform="rotate(20 50 50)">
+                        <Ellipse cx="50" cy="50" rx={pStyle.r + 8} ry={pStyle.r / 3} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
                     </G>
                   )}
                </Svg>
@@ -355,13 +250,11 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
   );
 };
 
-
-export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel, chronotype, achievementStars }: TaskOrbitProps) {
+export function TaskOrbit({ tasks = [], onCompleteTask, onEnterTunnel, chronotype, achievementStars }: TaskOrbitProps) {
   const coreScale = useSharedValue(1);
   const coreOpacity = useSharedValue(0.6);
 
   useEffect(() => {
-    // Pulsing core animation
     coreScale.value = withRepeat(
       withSequence(
         withTiming(1.2, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
@@ -380,37 +273,45 @@ export function TaskOrbit({ tasks, onCompleteTask, onEnterTunnel, chronotype, ac
     );
   }, []);
 
-  const pendingTasks = tasks.filter(t => !t.completed);
+  const pendingTasks = useMemo(() => (tasks || []).filter(t => !t.completed), [tasks]);
   
   const urgent = pendingTasks.filter(t => t.priority === 'urgent');
   const normal = pendingTasks.filter(t => t.priority === 'normal');
   const low = pendingTasks.filter(t => t.priority === 'low');
 
+  const auraStyle = useAnimatedStyle(() => {
+    const achievementBoost = 1 + (achievementStars?.value || 0) * 0.05;
+    return {
+      transform: [{ scale: coreScale.value * achievementBoost }],
+      opacity: coreOpacity.value,
+    };
+  });
+
   return (
     <View style={styles.container}>
-      {/* Dynamic Background Dust */}
-      <OrbitalDust radius={RADII.urgent} count={12} color={Colors.urgent} />
-      <OrbitalDust radius={RADII.normal} count={16} color={Colors.primary} />
-      <OrbitalDust radius={RADII.low} count={20} color={Colors.low} />
+      {/* Background Orbit Lines */}
+      <Svg style={StyleSheet.absoluteFill}>
+        <Circle cx={ORBIT_CENTER} cy={ORBIT_CENTER} r={RADII.urgent} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 4" />
+        <Circle cx={ORBIT_CENTER} cy={ORBIT_CENTER} r={RADII.normal} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" strokeDasharray="4 8" />
+        <Circle cx={ORBIT_CENTER} cy={ORBIT_CENTER} r={RADII.low} fill="none" stroke="rgba(255,255,255,0.02)" strokeWidth="1" strokeDasharray="6 12" />
+      </Svg>
 
       <View style={styles.orbitCenter}>
-         {/* Pulsing Core Aura */}
-         <Animated.View style={[
-           styles.coreAura,
-           useAnimatedStyle(() => ({
-             transform: [{ scale: withSpring(coreScale.value * (1 + (achievementStars?.value || 0) * 0.05)) }],
-             opacity: coreOpacity.value,
-           }))
-         ]} />
+         <Animated.View style={[styles.coreAura, auraStyle]} />
 
          <View style={styles.nowCore}>
             <Text style={styles.nowText}>NOW</Text>
          </View>
          
-         {/* Render Planets */}
-         {urgent.map((t, i) => <OrbitPlanet key={t.id} task={t} index={i} total={urgent.length} onComplete={() => onCompleteTask(t.id)} onEnterTunnel={() => onEnterTunnel(t)} chronotype={chronotype} />)}
-         {normal.map((t, i) => <OrbitPlanet key={t.id} task={t} index={i} total={normal.length} onComplete={() => onCompleteTask(t.id)} onEnterTunnel={() => onEnterTunnel(t)} chronotype={chronotype} />)}
-         {low.map((t, i) => <OrbitPlanet key={t.id} task={t} index={i} total={low.length} onComplete={() => onCompleteTask(t.id)} onEnterTunnel={() => onEnterTunnel(t)} chronotype={chronotype} />)}
+         {urgent.map((t, i) => (
+           <OrbitPlanet key={t.id} task={t} index={i} total={urgent.length} onComplete={onCompleteTask} onEnterTunnel={onEnterTunnel} chronotype={chronotype} />
+         ))}
+         {normal.map((t, i) => (
+           <OrbitPlanet key={t.id} task={t} index={i} total={normal.length} onComplete={onCompleteTask} onEnterTunnel={onEnterTunnel} chronotype={chronotype} />
+         ))}
+         {low.map((t, i) => (
+           <OrbitPlanet key={t.id} task={t} index={i} total={low.length} onComplete={onCompleteTask} onEnterTunnel={onEnterTunnel} chronotype={chronotype} />
+         ))}
       </View>
     </View>
   );
@@ -425,9 +326,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginTop: 20,
   },
-  svgBackground: {
-    position: 'absolute',
-  },
   orbitCenter: {
     width: 0,
     height: 0,
@@ -435,9 +333,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nowCore: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -451,16 +349,16 @@ const styles = StyleSheet.create({
   nowText: {
     color: '#000',
     fontWeight: '900',
-    fontSize: 10,
-    letterSpacing: 1.5,
+    fontSize: 12,
+    letterSpacing: 2,
   },
   coreAura: {
     position: 'absolute',
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(167, 139, 250, 0.4)',
-    borderColor: 'rgba(167, 139, 250, 0.6)',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(167, 139, 250, 0.3)',
+    borderColor: 'rgba(167, 139, 250, 0.5)',
     borderWidth: 1,
   },
   planetContainer: {
@@ -471,17 +369,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
   },
   textWrapper: {
-    marginTop: 45, // Position text below the sphere
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    marginTop: 50,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   planetText: {
     color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
-    maxWidth: 70,
+    fontSize: 10,
+    fontWeight: '800',
+    maxWidth: 90,
+    textAlign: 'center',
   }
 });
-

@@ -490,7 +490,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <OrbitalBackground achievementCount={achievementCount} />
+      <OrbitalBackground achievementCount={achievementStars} />
       
       <ElegantNotification
         visible={showInAppNotify}
