@@ -170,20 +170,7 @@ const withVeluraNativeCode = (config) => {
 function getUnlockReceiverCode() {
   return `package com.saiprakash77.velura;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.os.Build;
-import android.util.Log;
-
-import androidx.core.app.NotificationCompat;
-
-public class UnlockReceiver extends BroadcastReceiver {
+public class UnlockReceiver extends android.content.BroadcastReceiver {
     private static final String TAG = "VeluraUnlockReceiver";
     private static final String CHANNEL_ID = "velura-unlock";
     private static final int NOTIFICATION_ID = 9001;
@@ -192,10 +179,10 @@ public class UnlockReceiver extends BroadcastReceiver {
     private static final String KEY_LAST_TRIGGER = "last_unlock_trigger";
 
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(android.content.Context context, android.content.Intent intent) {
         String action = intent.getAction();
-        if (Intent.ACTION_USER_PRESENT.equals(action)) {
-            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (android.content.Intent.ACTION_USER_PRESENT.equals(action)) {
+            android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE);
             long now = System.currentTimeMillis();
             if (now - prefs.getLong(KEY_LAST_TRIGGER, 0) < 60000) return;
             
@@ -204,24 +191,24 @@ public class UnlockReceiver extends BroadcastReceiver {
         }
     }
 
-    private void fireUnlockNotification(Context context) {
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+    private void fireUnlockNotification(android.content.Context context) {
+        android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Unlock Briefing", NotificationManager.IMPORTANCE_HIGH));
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(new android.app.NotificationChannel(CHANNEL_ID, "Unlock Briefing", android.app.NotificationManager.IMPORTANCE_HIGH));
         }
 
-        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        android.content.Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         if (launchIntent == null) return;
         
-        PendingIntent pi = PendingIntent.getActivity(context, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(context, 0, launchIntent, android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+        androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("VELURA \\u2728")
+            .setContentTitle("VELURA")
             .setContentText("Your day awaits! Tap to hear your briefing.")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pi);
 
@@ -235,75 +222,61 @@ public class UnlockReceiver extends BroadcastReceiver {
 function getTaskAlarmReceiverCode() {
   return `package com.saiprakash77.velura;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.os.Build;
-import android.util.Log;
-
-import androidx.core.app.NotificationCompat;
-
-public class TaskAlarmReceiver extends BroadcastReceiver {
+public class TaskAlarmReceiver extends android.content.BroadcastReceiver {
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(android.content.Context context, android.content.Intent intent) {
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
-        Log.d("VeluraTaskAlarm", "Alarm fired for: " + title);
+        android.util.Log.d("VeluraTaskAlarm", "Alarm fired for: " + title);
 
-        // 1. SHOW TEXT NOTIFICATION WITH FULL SCREEN INTENT
         showInstantNotification(context, title, body);
 
-        // 2. START VOICE SERVICE
-        Intent serviceIntent = new Intent(context, VoiceNotificationService.class);
+        android.content.Intent serviceIntent = new android.content.Intent(context, VoiceNotificationService.class);
         serviceIntent.putExtra("title", title);
         serviceIntent.putExtra("body", body);
         
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 context.startForegroundService(serviceIntent);
             } else {
                 context.startService(serviceIntent);
             }
         } catch (Exception e) {
-            Log.e("VeluraTaskAlarm", "Failed to start voice service", e);
+            android.util.Log.e("VeluraTaskAlarm", "Failed to start voice service", e);
         }
     }
 
-    private void showInstantNotification(Context context, String title, String body) {
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+    private void showInstantNotification(android.content.Context context, String title, String body) {
+        android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
 
         String channelId = "velura-tasks";
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(channelId, "Task Reminders", android.app.NotificationManager.IMPORTANCE_HIGH);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             channel.enableLights(true);
             channel.setLightColor(0xFFA78BFA);
             nm.createNotificationChannel(channel);
         }
 
-        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        android.content.Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
         if (launchIntent == null) return;
 
-        PendingIntent pi = PendingIntent.getActivity(context, (int)System.currentTimeMillis(), launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(context, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(context, (int)System.currentTimeMillis(), launchIntent, android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
+        android.app.PendingIntent fullScreenPendingIntent = android.app.PendingIntent.getActivity(context, 0, launchIntent, android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
+        androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title)
             .setContentText(body)
-            .setPriority(NotificationCompat.PRIORITY_MAX) 
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_MAX) 
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pi)
             .setFullScreenIntent(fullScreenPendingIntent, true)
-            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setVisibility(androidx.core.app.NotificationCompat.VISIBILITY_PUBLIC)
             .setColor(0xFFA78BFA)
-            .setDefaults(NotificationCompat.DEFAULT_ALL);
+            .setDefaults(androidx.core.app.NotificationCompat.DEFAULT_ALL);
 
         android.app.Notification notification = builder.build();
         nm.notify((int) System.currentTimeMillis(), notification);
@@ -315,42 +288,21 @@ public class TaskAlarmReceiver extends BroadcastReceiver {
 function getVoiceNotificationServiceCode() {
   return `package com.saiprakash77.velura;
 
-import android.app.Notification;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.app.Service;
-import android.content.Context;
-import android.content.Intent;
-import android.content.pm.ServiceInfo;
-import android.media.AudioAttributes;
-import android.media.AudioFocusRequest;
-import android.media.AudioManager;
-import android.os.Build;
-import android.os.IBinder;
-import android.os.PowerManager;
-import android.speech.tts.TextToSpeech;
-import android.util.Log;
-
-import androidx.core.app.NotificationCompat;
-
-import java.util.Locale;
-
-public class VoiceNotificationService extends Service implements TextToSpeech.OnInitListener {
-    private TextToSpeech tts;
+public class VoiceNotificationService extends android.app.Service implements android.speech.tts.TextToSpeech.OnInitListener {
+    private android.speech.tts.TextToSpeech tts;
     private String title;
     private String body;
-    private PowerManager.WakeLock wakeLock;
-    private AudioManager audioManager;
-    private AudioFocusRequest focusRequest;
+    private android.os.PowerManager.WakeLock wakeLock;
+    private android.media.AudioManager audioManager;
+    private android.media.AudioFocusRequest focusRequest;
     private int originalVolume = -1;
 
     private static final String TAG = "VeluraVoice";
     private static final int SERVICE_NOTIFICATION_ID = 1001;
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "=== VoiceNotificationService STARTED ===");
+    public int onStartCommand(android.content.Intent intent, int flags, int startId) {
+        android.util.Log.d(TAG, "=== VoiceNotificationService STARTED ===");
         
         if (intent == null) {
             stopSelf();
@@ -362,85 +314,85 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         
         android.app.Notification notification = createStatusNotification("[VOICE ACTIVE] Speaking...");
         
-        if (Build.VERSION.SDK_INT >= 34) { // UPSIDE_DOWN_CAKE
+        if (android.os.Build.VERSION.SDK_INT >= 34) {
             startForeground(SERVICE_NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             startForeground(SERVICE_NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(SERVICE_NOTIFICATION_ID, notification);
         }
 
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        audioManager = (android.media.AudioManager) getSystemService(android.content.Context.AUDIO_SERVICE);
         try {
-            originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
-            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
-            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0);
+            originalVolume = audioManager.getStreamVolume(android.media.AudioManager.STREAM_ALARM);
+            int maxVolume = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM);
+            audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, maxVolume, 0);
         } catch (Exception e) {
-            Log.e(TAG, "Volume boost failed", e);
+            android.util.Log.e(TAG, "Volume boost failed", e);
         }
 
         requestAudioFocus();
 
-        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        android.os.PowerManager pm = (android.os.PowerManager) getSystemService(android.content.Context.POWER_SERVICE);
         if (pm != null) {
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
+            wakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
             wakeLock.acquire(120000L);
         }
 
-        tts = new TextToSpeech(this, this);
+        tts = new android.speech.tts.TextToSpeech(this, this);
         return START_NOT_STICKY;
     }
 
     private void requestAudioFocus() {
         if (audioManager == null) return;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            AudioAttributes playbackAttributes = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.media.AudioAttributes playbackAttributes = new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                 .build();
-            focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            focusRequest = new android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
                 .setAudioAttributes(playbackAttributes)
                 .setAcceptsDelayedFocusGain(true)
                 .build();
             audioManager.requestAudioFocus(focusRequest);
         } else {
-            audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+            audioManager.requestAudioFocus(null, android.media.AudioManager.STREAM_ALARM, android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
         }
     }
 
     private android.app.Notification createStatusNotification(String text) {
         String channelId = "velura-voice-service";
-        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(channelId, "Voice Service", NotificationManager.IMPORTANCE_LOW);
+        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        if (nm != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            android.app.NotificationChannel channel = new android.app.NotificationChannel(channelId, "Voice Service", android.app.NotificationManager.IMPORTANCE_LOW);
             nm.createNotificationChannel(channel);
         }
 
-        return new NotificationCompat.Builder(this, channelId)
+        return new androidx.core.app.NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("Velura Voice")
             .setContentText(text)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build();
     }
 
     @Override
     public void onInit(int status) {
-        if (status == TextToSpeech.SUCCESS && tts != null) {
-            tts.setLanguage(Locale.US);
+        if (status == android.speech.tts.TextToSpeech.SUCCESS && tts != null) {
+            tts.setLanguage(java.util.Locale.US);
             tts.setPitch(1.0f);
             tts.setSpeechRate(1.0f);
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                AudioAttributes aa = new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                android.media.AudioAttributes aa = new android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build();
                 tts.setAudioAttributes(aa);
             }
 
-            tts.speak(body, TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
+            tts.speak(body, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
             
             new Thread(() -> {
                 try { Thread.sleep(3000); } catch (Exception ignored) {} 
@@ -457,7 +409,7 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
     private void cleanup() {
         restoreVolume();
         abandonAudioFocus();
-        if (Build.VERSION.SDK_INT >= 24) {
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
             stopForeground(STOP_FOREGROUND_REMOVE);
         } else {
             stopForeground(true);
@@ -468,14 +420,14 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
     private void restoreVolume() {
         if (audioManager != null && originalVolume >= 0) {
             try {
-                audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalVolume, 0);
+                audioManager.setStreamVolume(android.media.AudioManager.STREAM_ALARM, originalVolume, 0);
             } catch (Exception ignored) {}
         }
     }
 
     private void abandonAudioFocus() {
         if (audioManager != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && focusRequest != null) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O && focusRequest != null) {
                 audioManager.abandonAudioFocusRequest(focusRequest);
             } else {
                 audioManager.abandonAudioFocus(null);
@@ -495,7 +447,7 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         super.onDestroy();
     }
 
-    @Override public IBinder onBind(Intent intent) { return null; }
+    @Override public android.os.IBinder onBind(android.content.Intent intent) { return null; }
 }
 `;
 }
