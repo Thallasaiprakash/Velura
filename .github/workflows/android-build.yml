@@ -12,29 +12,22 @@ jobs:
       - name: 🏗 Checkout
         uses: actions/checkout@v4
 
-      - name: 🧹 Cleanup disk space
-        run: |
-          sudo rm -rf /usr/share/dotnet
-          sudo rm -rf /opt/ghc
-          sudo rm -rf "/usr/local/share/boost"
-          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
-
       - name: 🏗 Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      - name: 🏗 Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: 'ndk;26.1.10909125'
-
       - name: 🏗 Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+
+      - name: 🏗 Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34,build-tools;34.0.0,ndk;26.1.10909125'
 
       - name: 🏗 Setup Expo
         uses: expo/expo-github-action@v8
@@ -45,22 +38,19 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
-      - name: 🛠 Verify Google Services
+      - name: 🛠 Configure Google Services
         run: |
           if [ ! -f "google-services.json" ]; then
-            echo "Warning: google-services.json missing, creating dummy for build phase"
             echo '{"project_info":{"project_number":"123","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc"},"api_key":[{"current_key":"dummy"}]}]}' > google-services.json
           fi
 
-      - name: 🏗 Expo Prebuild (Verify Plugins)
-        run: npx expo prebuild --platform android --no-install
-        env:
-          EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
-
-      - name: 🚀 Build Android APK (Local)
+      - name: 🚀 Build Android APK (Local CI)
         run: |
-          export JAVA_OPTS="-Xmx4096m -XX:MaxMetaspaceSize=1024m"
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
+          # Optimize for CI memory limits
+          export JAVA_OPTS="-Xmx4g"
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.configureondemand=false"
+          
+          # Force resolution of local dependencies and run EAS build
           eas build --platform android --profile preview --local --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
@@ -70,17 +60,19 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: velura-preview-apk
+          name: Velura-Build
           path: |
             *.apk
             android/app/build/outputs/apk/preview/*.apk
+            android/app/build/outputs/apk/release/*.apk
 
       - name: 📤 Upload Build Logs on Failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
+          name: build-failure-logs
           path: |
             android/app/build/logs
             android/build/logs
             *.log
+            android/app/src/main/java/com/saiprakash77/velura/*.java

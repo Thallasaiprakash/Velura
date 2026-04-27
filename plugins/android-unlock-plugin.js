@@ -1,4 +1,4 @@
-const { withAndroidManifest, withDangerousMod, withMainApplication, withPlugins, withProjectBuildGradle } = require('@expo/config-plugins');
+const { withAndroidManifest, withDangerousMod, withMainApplication, withPlugins, withProjectBuildGradle, withAppBuildGradle } = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -12,7 +12,20 @@ const withVeluraNative = (config) => {
     withVeluraManifest,
     withVeluraNativeCode,
     withVeluraMainApplication,
+    withVeluraDependencies,
   ]);
+};
+
+const withVeluraDependencies = (config) => {
+  return withAppBuildGradle(config, (config) => {
+    if (!config.modResults.contents.includes('androidx.core:core:1.13.1')) {
+      config.modResults.contents = config.modResults.contents.replace(
+        /dependencies\s?{/,
+        `dependencies {\n    implementation "androidx.core:core:1.13.1"`
+      );
+    }
+    return config;
+  });
 };
 
 const withVeluraManifest = (config) => {
@@ -157,6 +170,7 @@ const withVeluraNativeCode = (config) => {
 function getUnlockReceiverCode() {
   return `package com.saiprakash77.velura;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -192,11 +206,15 @@ public class UnlockReceiver extends BroadcastReceiver {
 
     private void fireUnlockNotification(Context context) {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Unlock Briefing", NotificationManager.IMPORTANCE_HIGH));
         }
 
         Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (launchIntent == null) return;
+        
         PendingIntent pi = PendingIntent.getActivity(context, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
@@ -216,6 +234,7 @@ public class UnlockReceiver extends BroadcastReceiver {
 function getTaskAlarmReceiverCode() {
   return `package com.saiprakash77.velura;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -234,36 +253,42 @@ public class TaskAlarmReceiver extends BroadcastReceiver {
         String body = intent.getStringExtra("body");
         Log.d("VeluraTaskAlarm", "Alarm fired for: " + title);
 
-        // 1. SHOW TEXT NOTIFICATION WITH FULL SCREEN INTENT (Priority #1)
+        // 1. SHOW TEXT NOTIFICATION WITH FULL SCREEN INTENT
         showInstantNotification(context, title, body);
 
-        // 2. START VOICE SERVICE (Priority #2)
+        // 2. START VOICE SERVICE
         Intent serviceIntent = new Intent(context, VoiceNotificationService.class);
         serviceIntent.putExtra("title", title);
         serviceIntent.putExtra("body", body);
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent);
-        } else {
-            context.startService(serviceIntent);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent);
+            } else {
+                context.startService(serviceIntent);
+            }
+        } catch (Exception e) {
+            Log.e("VeluraTaskAlarm", "Failed to start voice service", e);
         }
     }
 
     private void showInstantNotification(Context context, String title, String body) {
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+
         String channelId = "velura-tasks";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH);
-            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             channel.enableLights(true);
             channel.setLightColor(0xFFA78BFA);
             nm.createNotificationChannel(channel);
         }
 
         Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        PendingIntent pi = PendingIntent.getActivity(context, (int)System.currentTimeMillis(), launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        if (launchIntent == null) return;
 
-        // Full Screen Intent setup
+        PendingIntent pi = PendingIntent.getActivity(context, (int)System.currentTimeMillis(), launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent fullScreenPendingIntent = PendingIntent.getActivity(context, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(context, channelId)
@@ -274,7 +299,7 @@ public class TaskAlarmReceiver extends BroadcastReceiver {
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pi)
-            .setFullScreenIntent(fullScreenPendingIntent, true) // CRITICAL: Wakes screen on Xiaomi
+            .setFullScreenIntent(fullScreenPendingIntent, true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setColor(0xFFA78BFA)
             .setDefaults(NotificationCompat.DEFAULT_ALL);
@@ -288,12 +313,14 @@ public class TaskAlarmReceiver extends BroadcastReceiver {
 function getVoiceNotificationServiceCode() {
   return `package com.saiprakash77.velura;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
@@ -324,41 +351,44 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         Log.d(TAG, "=== VoiceNotificationService STARTED ===");
         
         if (intent == null) {
-            Log.e(TAG, "Intent is null, stopping");
             stopSelf();
             return START_NOT_STICKY;
         }
 
         title = intent.getStringExtra("title");
         body = intent.getStringExtra("body");
-        Log.d(TAG, "Will speak: " + body);
         
-        startForeground(SERVICE_NOTIFICATION_ID, createStatusNotification("[VOICE ACTIVE] Speaking..."));
+        Notification notification = createStatusNotification("[VOICE ACTIVE] Speaking...");
+        
+        if (Build.VERSION.SDK_INT >= 34) { // UPSIDE_DOWN_CAKE
+            startForeground(SERVICE_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(SERVICE_NOTIFICATION_ID, notification);
+        }
 
         audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
-        
-        // FORCE VOLUME: Save current and boost to max on ALARM stream
         try {
             originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM);
             int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM);
             audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVolume, 0);
-            Log.d(TAG, "Volume forced to max: " + maxVolume + " (was " + originalVolume + ")");
         } catch (Exception e) {
-            Log.e(TAG, "Volume boost failed: " + e.getMessage());
+            Log.e(TAG, "Volume boost failed", e);
         }
 
         requestAudioFocus();
 
         PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
-        wakeLock.acquire(2 * 60 * 1000L);
+        if (pm != null) {
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Velura:VoiceWakeLock");
+            wakeLock.acquire(120000L);
+        }
 
-        Log.d(TAG, "Initializing TTS engine...");
         tts = new TextToSpeech(this, this);
         return START_NOT_STICKY;
     }
 
     private void requestAudioFocus() {
+        if (audioManager == null) return;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             AudioAttributes playbackAttributes = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ALARM)
@@ -368,17 +398,16 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
                 .setAudioAttributes(playbackAttributes)
                 .setAcceptsDelayedFocusGain(true)
                 .build();
-            int result = audioManager.requestAudioFocus(focusRequest);
-            Log.d(TAG, "Audio focus result: " + result);
+            audioManager.requestAudioFocus(focusRequest);
         } else {
             audioManager.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
         }
     }
 
-    private android.app.Notification createStatusNotification(String text) {
+    private Notification createStatusNotification(String text) {
         String channelId = "velura-voice-service";
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(channelId, "Voice Service", NotificationManager.IMPORTANCE_LOW);
             nm.createNotificationChannel(channel);
         }
@@ -394,53 +423,49 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
 
     @Override
     public void onInit(int status) {
-        Log.d(TAG, "TTS onInit called with status: " + status);
-        if (status == TextToSpeech.SUCCESS) {
-            int langResult = tts.setLanguage(Locale.US);
-            Log.d(TAG, "TTS language set result: " + langResult);
+        if (status == TextToSpeech.SUCCESS && tts != null) {
+            tts.setLanguage(Locale.US);
             tts.setPitch(1.0f);
             tts.setSpeechRate(1.0f);
 
-            // Use ALARM stream for TTS - this is NEVER muted on Xiaomi
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 AudioAttributes aa = new AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_ALARM)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build();
                 tts.setAudioAttributes(aa);
-                Log.d(TAG, "TTS AudioAttributes set to USAGE_ALARM");
             }
 
-            Log.d(TAG, "Speaking now: " + body);
-            int speakResult = tts.speak(body, TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
-            Log.d(TAG, "TTS speak() result: " + speakResult);
+            tts.speak(body, TextToSpeech.QUEUE_FLUSH, null, "VeluraTaskID");
             
             new Thread(() -> {
                 try { Thread.sleep(3000); } catch (Exception ignored) {} 
                 while (tts != null && tts.isSpeaking()) {
                     try { Thread.sleep(500); } catch (Exception ignored) {}
                 }
-                Log.d(TAG, "Speech finished, cleaning up");
-                restoreVolume();
-                abandonAudioFocus();
-                stopForeground(true);
-                stopSelf();
+                cleanup();
             }).start();
         } else {
-            Log.e(TAG, "TTS initialization FAILED with status: " + status);
-            restoreVolume();
             stopSelf();
         }
+    }
+
+    private void cleanup() {
+        restoreVolume();
+        abandonAudioFocus();
+        if (Build.VERSION.SDK_INT >= 24) {
+            stopForeground(STOP_FOREGROUND_REMOVE);
+        } else {
+            stopForeground(true);
+        }
+        stopSelf();
     }
 
     private void restoreVolume() {
         if (audioManager != null && originalVolume >= 0) {
             try {
                 audioManager.setStreamVolume(AudioManager.STREAM_ALARM, originalVolume, 0);
-                Log.d(TAG, "Volume restored to: " + originalVolume);
-            } catch (Exception e) {
-                Log.e(TAG, "Volume restore failed: " + e.getMessage());
-            }
+            } catch (Exception ignored) {}
         }
     }
 
@@ -456,7 +481,6 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
 
     @Override
     public void onDestroy() {
-        Log.d(TAG, "VoiceNotificationService destroyed");
         if (tts != null) {
             tts.stop();
             tts.shutdown();
@@ -464,8 +488,6 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
         }
-        restoreVolume();
-        abandonAudioFocus();
         super.onDestroy();
     }
 
@@ -507,7 +529,7 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
         Context context = getReactApplicationContext();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-            promise.resolve(alarmManager.canScheduleExactAlarms());
+            promise.resolve(alarmManager != null && alarmManager.canScheduleExactAlarms());
         } else {
             promise.resolve(true);
         }
@@ -528,7 +550,7 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
     public void isIgnoringBatteryOptimizations(Promise promise) {
         Context context = getReactApplicationContext();
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (pm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             promise.resolve(pm.isIgnoringBatteryOptimizations(context.getPackageName()));
         } else {
             promise.resolve(true);
@@ -574,6 +596,7 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
     public void scheduleAlarm(double timestamp, String title, String body, String id) {
         Context context = getReactApplicationContext();
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return;
 
         Intent intent = new Intent(context, TaskAlarmReceiver.class);
         intent.setAction("com.saiprakash77.velura.TASK_ALARM");
@@ -592,13 +615,14 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
         } else {
             alarmManager.setExact(AlarmManager.RTC_WAKEUP, (long) timestamp, pi);
         }
-        Log.d("VeluraAlarm", "Scheduled alarm: " + id + " at " + (long)timestamp);
     }
 
     @ReactMethod
     public void cancelAlarm(String id) {
         Context context = getReactApplicationContext();
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return;
+
         Intent intent = new Intent(context, TaskAlarmReceiver.class);
         intent.setAction("com.saiprakash77.velura.TASK_ALARM");
         

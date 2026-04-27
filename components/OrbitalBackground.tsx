@@ -10,7 +10,8 @@ import Svg, {
   LinearGradient,
   Path,
   Filter,
-  GaussianBlur
+  GaussianBlur,
+  Image as SvgImage
 } from 'react-native-svg';
 import Animated, { 
   useSharedValue, 
@@ -191,11 +192,27 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
           {/* 4. Event Horizon Distortion */}
           <Circle r={width * 0.17} fill="url(#eventHorizon)" />
           
-          {/* 5. The Singularity (Absolute Black) */}
-          <Circle r={width * 0.14} fill="url(#gargantuaSingularity)" />
+          {/* 5. The Singularity (High-Fidelity Image) */}
+          <AnimatedG
+            animatedProps={useAnimatedProps(() => {
+              const s = 0.38 * (diskScale.value || 1);
+              return {
+                transform: `scale(${s})`,
+              };
+            })}
+          >
+            <SvgImage
+              href={require('../assets/images/gargantua.png')}
+              width={width}
+              height={width}
+              x={-width / 2}
+              y={-width / 2}
+              opacity={1}
+            />
+          </AnimatedG>
           
           {/* 6. Photon Sphere (Intense white edge) */}
-          <Circle r={width * 0.142} fill="none" stroke="#FFF" strokeOpacity="0.2" strokeWidth="1" />
+          <Circle r={width * 0.142} fill="none" stroke="#FFF" strokeOpacity="0.15" strokeWidth="1.5" />
         </G>
       </Svg>
     </View>

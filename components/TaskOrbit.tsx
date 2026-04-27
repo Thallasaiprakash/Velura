@@ -143,11 +143,11 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
          transform: [
            { translateX: tx },
            { translateY: ty },
-           { scale: interpolate(s, [1, 0], [1, 2], Extrapolate.CLAMP) }
+           { scale: interpolate(s, [1, 0], [1, 2], Extrapolate.CLAMP) || 0 }
          ],
          opacity: s,
        };
-    }
+     }
 
     if (isDragging.value) {
       return {
@@ -161,15 +161,11 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
       };
     }
 
-    // Keep values in sync for drag start
-    translateX.value = sx;
-    translateY.value = sy;
-
     return {
       transform: [
         { translateX: sx },
         { translateY: sy },
-        { scale: s * ps }
+        { scale: (s * ps) || 0 }
       ],
       position: 'absolute',
       zIndex: 1,

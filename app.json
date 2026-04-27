@@ -55,7 +55,10 @@
         {
           "android": {
             "gradleVersion": "8.3",
-            "ndkVersion": "26.1.10909125"
+            "ndkVersion": "26.1.10909125",
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "kotlinVersion": "1.9.22"
           }
         }
       ],
