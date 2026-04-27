@@ -225,7 +225,8 @@ public class UnlockReceiver extends BroadcastReceiver {
             .setAutoCancel(true)
             .setContentIntent(pi);
 
-        nm.notify(NOTIFICATION_ID, builder.build());
+        android.app.Notification notification = builder.build();
+        nm.notify(NOTIFICATION_ID, notification);
     }
 }
 `;
@@ -279,7 +280,7 @@ public class TaskAlarmReceiver extends BroadcastReceiver {
         String channelId = "velura-tasks";
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(channelId, "Task Reminders", NotificationManager.IMPORTANCE_HIGH);
-            channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             channel.enableLights(true);
             channel.setLightColor(0xFFA78BFA);
             nm.createNotificationChannel(channel);
@@ -304,7 +305,8 @@ public class TaskAlarmReceiver extends BroadcastReceiver {
             .setColor(0xFFA78BFA)
             .setDefaults(NotificationCompat.DEFAULT_ALL);
 
-        nm.notify((int) System.currentTimeMillis(), builder.build());
+        android.app.Notification notification = builder.build();
+        nm.notify((int) System.currentTimeMillis(), notification);
     }
 }
 `;
@@ -358,10 +360,12 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         title = intent.getStringExtra("title");
         body = intent.getStringExtra("body");
         
-        Notification notification = createStatusNotification("[VOICE ACTIVE] Speaking...");
+        android.app.Notification notification = createStatusNotification("[VOICE ACTIVE] Speaking...");
         
         if (Build.VERSION.SDK_INT >= 34) { // UPSIDE_DOWN_CAKE
-            startForeground(SERVICE_NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+            startForeground(SERVICE_NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(SERVICE_NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
         } else {
             startForeground(SERVICE_NOTIFICATION_ID, notification);
         }
@@ -404,7 +408,7 @@ public class VoiceNotificationService extends Service implements TextToSpeech.On
         }
     }
 
-    private Notification createStatusNotification(String text) {
+    private android.app.Notification createStatusNotification(String text) {
         String channelId = "velura-voice-service";
         NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
