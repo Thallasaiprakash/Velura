@@ -68,10 +68,23 @@ jobs:
 
       - name: 📤 Upload Build Logs on Failure
         if: failure()
+        run: |
+          echo "=== RECENT GRADLE LOGS ==="
+          find . -name "*.log" -exec tail -n 100 {} + || true
+          echo "=== GENERATED JAVA FILES ==="
+          find android/app/src/main/java/com/saiprakash77/velura -name "*.java" -exec echo "--- {} ---" \; -exec cat {} \; || true
+          echo "=== MAIN APPLICATION ==="
+          find android/app/src/main -name "MainApplication.*" -exec echo "--- {} ---" \; -exec cat {} \; || true
+
+      - name: 📤 Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: build-failure-logs
+          name: Velura-Build-Artifacts
           path: |
+            *.apk
+            android/app/build/outputs/apk/preview/*.apk
+            android/app/build/outputs/apk/release/*.apk
             android/app/build/logs
             android/build/logs
             *.log

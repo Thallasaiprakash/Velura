@@ -18,10 +18,10 @@ const withVeluraNative = (config) => {
 
 const withVeluraDependencies = (config) => {
   return withAppBuildGradle(config, (config) => {
-    if (!config.modResults.contents.includes('androidx.core:core:1.13.1')) {
+    if (!config.modResults.contents.includes('androidx.core:core:')) {
       config.modResults.contents = config.modResults.contents.replace(
         /dependencies\s?{/,
-        `dependencies {\n    implementation "androidx.core:core:1.13.1"`
+        `dependencies {\n    implementation "androidx.core:core:1.12.0"`
       );
     }
     return config;
@@ -46,6 +46,7 @@ const withVeluraManifest = (config) => {
       'android.permission.USE_FULL_SCREEN_INTENT',
       'android.permission.MODIFY_AUDIO_SETTINGS',
       'android.permission.ACCESS_NOTIFICATION_POLICY',
+      'android.permission.POST_NOTIFICATIONS',
     ];
 
     requiredPermissions.forEach(perm => {
