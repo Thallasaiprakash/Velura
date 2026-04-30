@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: 🏗 Checkout
         uses: actions/checkout@v4
@@ -36,22 +37,17 @@ jobs:
           token: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
 
       - name: 📦 Install dependencies
-        run: npm install
+        run: npm ci || npm install
 
-      - name: 🛠 Configure Google Services
-        run: |
-          if [ ! -f "google-services.json" ]; then
-            echo '{"project_info":{"project_number":"123","project_id":"dummy"},"client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc"},"api_key":[{"current_key":"dummy"}]}]}' > google-services.json
-          fi
+      - name: 🔍 Validate native plugin
+        run: node -e "require('./plugins/android-unlock-plugin.js'); console.log('Plugin loaded OK')"
 
       - name: 🚀 Build Android APK (Local CI)
         run: |
-          # Optimize for CI memory limits
           export JAVA_OPTS="-Xmx4g"
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.configureondemand=false"
+          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
           
-          # Force resolution of local dependencies and run EAS build
-          eas build --platform android --profile preview --local --non-interactive
+          eas build --platform android --profile preview --local --non-interactive 2>&1 | tee build_output.log
         env:
           EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -63,29 +59,37 @@ jobs:
           name: Velura-Build
           path: |
             *.apk
-            android/app/build/outputs/apk/preview/*.apk
-            android/app/build/outputs/apk/release/*.apk
+            build-*.apk
 
-      - name: 📤 Upload Build Logs on Failure
+      - name: 📋 Print Build Error Details
         if: failure()
         run: |
-          echo "=== RECENT GRADLE LOGS ==="
-          find . -name "*.log" -exec tail -n 100 {} + || true
+          echo "========================================="
+          echo "=== FULL BUILD OUTPUT (last 200 lines) ==="
+          echo "========================================="
+          tail -n 200 build_output.log || true
+          
+          echo ""
+          echo "========================================="
+          echo "=== SEARCHING FOR JAVA ERRORS ==="
+          echo "========================================="
+          grep -i "error:" build_output.log || true
+          grep -i "cannot find symbol" build_output.log || true
+          grep -i "FAILURE:" build_output.log || true
+          
+          echo ""
+          echo "========================================="
           echo "=== GENERATED JAVA FILES ==="
-          find android/app/src/main/java/com/saiprakash77/velura -name "*.java" -exec echo "--- {} ---" \; -exec cat {} \; || true
-          echo "=== MAIN APPLICATION ==="
-          find android/app/src/main -name "MainApplication.*" -exec echo "--- {} ---" \; -exec cat {} \; || true
+          echo "========================================="
+          find /tmp -path "*/com/saiprakash77/velura/*.java" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || true
+          find . -path "*/com/saiprakash77/velura/*.java" -exec echo "--- {} ---" \; -exec cat {} \; 2>/dev/null || true
 
-      - name: 📤 Upload Artifacts
+      - name: 📤 Upload All Logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Velura-Build-Artifacts
+          name: build-logs
           path: |
+            build_output.log
             *.apk
-            android/app/build/outputs/apk/preview/*.apk
-            android/app/build/outputs/apk/release/*.apk
-            android/app/build/logs
-            android/build/logs
-            *.log
-            android/app/src/main/java/com/saiprakash77/velura/*.java
+          if-no-files-found: ignore

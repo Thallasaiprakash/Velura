@@ -307,7 +307,7 @@ public class VoiceNotificationService extends android.app.Service implements and
         
         if (intent == null) {
             stopSelf();
-            return START_NOT_STICKY;
+            return android.app.Service.START_NOT_STICKY;
         }
 
         title = intent.getStringExtra("title");
@@ -341,7 +341,7 @@ public class VoiceNotificationService extends android.app.Service implements and
         }
 
         tts = new android.speech.tts.TextToSpeech(this, this);
-        return START_NOT_STICKY;
+        return android.app.Service.START_NOT_STICKY;
     }
 
     private void requestAudioFocus() {
@@ -411,7 +411,7 @@ public class VoiceNotificationService extends android.app.Service implements and
         restoreVolume();
         abandonAudioFocus();
         if (android.os.Build.VERSION.SDK_INT >= 24) {
-            stopForeground(STOP_FOREGROUND_REMOVE);
+            stopForeground(android.app.Service.STOP_FOREGROUND_REMOVE);
         } else {
             stopForeground(true);
         }
