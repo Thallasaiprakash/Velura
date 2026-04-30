@@ -42,57 +42,60 @@ jobs:
       - name: 🔍 Validate native plugin
         run: node -e "require('./plugins/android-unlock-plugin.js'); console.log('Plugin loaded OK')"
 
-      - name: 🚀 Build Android APK (Local CI)
-        id: build_step
+      - name: 🚀 Build Android APK
         run: |
           export JAVA_OPTS="-Xmx4g"
           export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
           
-          # Run eas build and capture output
-          eas build --platform android --profile preview --local --non-interactive --output ./velura-app.apk 2>&1 | tee build_output.log
+          # Set output directory for local EAS build
+          mkdir -p ./build-output
+          export EAS_LOCAL_BUILD_ARTIFACTS_DIR=./build-output
           
-          # Verify the APK was created
-          if [ -f "./velura-app.apk" ]; then
-            echo "✅ APK created successfully at ./velura-app.apk"
-            ls -lh ./velura-app.apk
-            echo "apk_path=./velura-app.apk" >> $GITHUB_OUTPUT
+          eas build --platform android --profile preview --local --non-interactive 2>&1 | tee build_output.log
+          
+          echo ""
+          echo "=== Build output directory contents ==="
+          ls -la ./build-output/ || true
+          
+          # Find and rename the APK for easy download
+          APK_FILE=$(find ./build-output -name "*.apk" -type f | head -1)
+          if [ -n "$APK_FILE" ]; then
+            cp "$APK_FILE" ./Velura.apk
+            echo "✅ APK ready: Velura.apk ($(du -h ./Velura.apk | cut -f1))"
           else
-            echo "⚠️ APK not at expected path, searching..."
-            # Fallback: search everywhere
-            APK_PATH=$(find / -name "*.apk" -type f -newer build_output.log 2>/dev/null | head -1)
-            if [ -n "$APK_PATH" ]; then
-              echo "Found APK at: $APK_PATH"
-              cp "$APK_PATH" ./velura-app.apk
-              echo "apk_path=./velura-app.apk" >> $GITHUB_OUTPUT
+            echo "⚠️ No APK in build-output, searching project root..."
+            APK_FILE=$(find . -maxdepth 1 -name "*.apk" -type f | head -1)
+            if [ -n "$APK_FILE" ]; then
+              cp "$APK_FILE" ./Velura.apk
+              echo "✅ APK found in root: Velura.apk"
             else
-              echo "❌ No APK found anywhere"
-              # Also check build log for the output path
-              echo "=== Last 20 lines of build output ==="
-              tail -20 build_output.log
+              echo "❌ No APK found. Last 30 lines of build output:"
+              tail -30 build_output.log
             fi
           fi
         env:
           EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: 📤 Upload APK
+      - name: 📤 Upload Velura APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Velura-APK
-          path: velura-app.apk
+          path: |
+            Velura.apk
+            build-output/*.apk
           if-no-files-found: warn
 
       - name: 📋 Print Build Error Details
         if: failure()
         run: |
-          echo "=== FULL BUILD OUTPUT (last 200 lines) ==="
+          echo "=== BUILD OUTPUT (last 200 lines) ==="
           tail -n 200 build_output.log || true
           echo ""
           echo "=== JAVA ERRORS ==="
           grep -i "error:" build_output.log || true
           grep -i "cannot find symbol" build_output.log || true
-          grep -i "FAILURE:" build_output.log || true
 
       - name: 📤 Upload Build Logs
         if: always()
