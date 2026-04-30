@@ -52,14 +52,24 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: 📦 Find and collect APK
+        if: success()
+        run: |
+          echo "=== Searching for APK files ==="
+          find . /tmp -name "*.apk" -type f 2>/dev/null | head -20
+          # Copy any APK found to workspace root
+          find . /tmp -name "*.apk" -type f -exec cp {} ./velura-build.apk \; 2>/dev/null || true
+          ls -la *.apk 2>/dev/null || echo "No APK found in root"
+
       - name: 📤 Upload APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Velura-Build
           path: |
+            velura-build.apk
             *.apk
-            build-*.apk
+          if-no-files-found: warn
 
       - name: 📋 Print Build Error Details
         if: failure()
