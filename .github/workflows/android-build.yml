@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: 🏗 Checkout
         uses: actions/checkout@v4
@@ -46,32 +46,64 @@ jobs:
         run: |
           export JAVA_OPTS="-Xmx4g"
           export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
-          
-          # Set output directory for local EAS build
-          mkdir -p ./build-output
-          export EAS_LOCAL_BUILD_ARTIFACTS_DIR=./build-output
-          
+
+          # Record timestamp before build so we can find new APK files
+          touch /tmp/build_start_marker
+
+          # Run the build and capture full output
           eas build --platform android --profile preview --local --non-interactive 2>&1 | tee build_output.log
-          
-          echo ""
-          echo "=== Build output directory contents ==="
-          ls -la ./build-output/ || true
-          
-          # Find and rename the APK for easy download
-          APK_FILE=$(find ./build-output -name "*.apk" -type f | head -1)
-          if [ -n "$APK_FILE" ]; then
-            cp "$APK_FILE" ./Velura.apk
-            echo "✅ APK ready: Velura.apk ($(du -h ./Velura.apk | cut -f1))"
+          BUILD_EXIT=$?
+
+          echo "========================================="
+          echo "Build exit code: $BUILD_EXIT"
+          echo "========================================="
+
+          # Strategy 1: Parse APK path from eas output (eas prints it on the last line)
+          EAS_APK_PATH=$(grep -oE '/[^ ]+\.apk' build_output.log | tail -1)
+          echo "EAS reported APK path: $EAS_APK_PATH"
+
+          if [ -n "$EAS_APK_PATH" ] && [ -f "$EAS_APK_PATH" ]; then
+            echo "✅ Found APK from EAS output: $EAS_APK_PATH"
+            cp "$EAS_APK_PATH" ./Velura.apk
           else
-            echo "⚠️ No APK in build-output, searching project root..."
-            APK_FILE=$(find . -maxdepth 1 -name "*.apk" -type f | head -1)
-            if [ -n "$APK_FILE" ]; then
-              cp "$APK_FILE" ./Velura.apk
-              echo "✅ APK found in root: Velura.apk"
+            echo "Strategy 1 failed. Trying full filesystem search..."
+
+            # Strategy 2: Search entire filesystem for APK files created after build started
+            FOUND_APK=$(find / -name "*.apk" -newer /tmp/build_start_marker -type f 2>/dev/null | grep -v node_modules | head -1)
+            echo "Found APK via filesystem search: $FOUND_APK"
+
+            if [ -n "$FOUND_APK" ] && [ -f "$FOUND_APK" ]; then
+              echo "✅ Found APK from filesystem search: $FOUND_APK"
+              cp "$FOUND_APK" ./Velura.apk
             else
-              echo "❌ No APK found. Last 30 lines of build output:"
-              tail -30 build_output.log
+              echo "Strategy 2 failed. Trying broad search..."
+
+              # Strategy 3: Find ANY apk file anywhere
+              echo "=== ALL APK files on system ==="
+              find / -name "*.apk" -type f 2>/dev/null | grep -v node_modules || echo "No APK files found anywhere"
+
+              echo "=== ALL AAB files on system ==="
+              find / -name "*.aab" -type f 2>/dev/null | grep -v node_modules || echo "No AAB files found anywhere"
+
+              echo "=== Files in current directory ==="
+              ls -la *.apk *.aab 2>/dev/null || echo "No apk/aab in current directory"
+
+              echo "=== Last 50 lines of build output ==="
+              tail -50 build_output.log
             fi
+          fi
+
+          # Final verification
+          if [ -f "./Velura.apk" ]; then
+            echo "========================================="
+            echo "✅ SUCCESS: Velura.apk is ready!"
+            ls -lh ./Velura.apk
+            echo "========================================="
+          else
+            echo "========================================="
+            echo "❌ FAILED: Could not locate APK file"
+            echo "========================================="
+            exit 1
           fi
         env:
           EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
@@ -81,21 +113,8 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Velura-APK
-          path: |
-            Velura.apk
-            build-output/*.apk
-          if-no-files-found: warn
-
-      - name: 📋 Print Build Error Details
-        if: failure()
-        run: |
-          echo "=== BUILD OUTPUT (last 200 lines) ==="
-          tail -n 200 build_output.log || true
-          echo ""
-          echo "=== JAVA ERRORS ==="
-          grep -i "error:" build_output.log || true
-          grep -i "cannot find symbol" build_output.log || true
+          name: Velura-APK-Download
+          path: Velura.apk
 
       - name: 📤 Upload Build Logs
         if: always()
