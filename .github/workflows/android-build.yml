@@ -51,20 +51,25 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -100
+          ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -100
 
       - name: 📦 Collect APK
         run: |
-          echo "=== Searching for APK ==="
-          find android/app/build/outputs -name "*.apk" -type f 2>/dev/null
+          echo "=== All APK files generated ==="
+          find android -name "*.apk" -type f 2>/dev/null
           
+          # Try debug APK first, then release
           APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
+          if [ -z "$APK" ]; then
+            APK=$(find android -name "*.apk" -type f | grep -v intermediates | head -1)
+          fi
+          
           if [ -n "$APK" ]; then
             cp "$APK" ./Velura.apk
             echo "✅ APK collected: $(ls -lh Velura.apk | awk '{print $5}')"
           else
-            echo "❌ No APK found in outputs"
-            find android -name "*.apk" -type f 2>/dev/null || echo "No APK anywhere in android/"
+            echo "❌ No APK found. Full android build outputs:"
+            find android/app/build/outputs -type f 2>/dev/null || echo "No outputs directory"
             exit 1
           fi
 
