@@ -42,84 +42,44 @@ jobs:
       - name: 🔍 Validate native plugin
         run: node -e "require('./plugins/android-unlock-plugin.js'); console.log('Plugin loaded OK')"
 
-      - name: 🚀 Build Android APK
-        run: |
-          export JAVA_OPTS="-Xmx4g"
-          export GRADLE_OPTS="-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false"
-
-          # Record timestamp before build so we can find new APK files
-          touch /tmp/build_start_marker
-
-          # Run the build and capture full output
-          eas build --platform android --profile preview --local --non-interactive 2>&1 | tee build_output.log
-          BUILD_EXIT=$?
-
-          echo "========================================="
-          echo "Build exit code: $BUILD_EXIT"
-          echo "========================================="
-
-          # Strategy 1: Parse APK path from eas output (eas prints it on the last line)
-          EAS_APK_PATH=$(grep -oE '/[^ ]+\.apk' build_output.log | tail -1)
-          echo "EAS reported APK path: $EAS_APK_PATH"
-
-          if [ -n "$EAS_APK_PATH" ] && [ -f "$EAS_APK_PATH" ]; then
-            echo "✅ Found APK from EAS output: $EAS_APK_PATH"
-            cp "$EAS_APK_PATH" ./Velura.apk
-          else
-            echo "Strategy 1 failed. Trying full filesystem search..."
-
-            # Strategy 2: Search entire filesystem for APK files created after build started
-            FOUND_APK=$(find / -name "*.apk" -newer /tmp/build_start_marker -type f 2>/dev/null | grep -v node_modules | head -1)
-            echo "Found APK via filesystem search: $FOUND_APK"
-
-            if [ -n "$FOUND_APK" ] && [ -f "$FOUND_APK" ]; then
-              echo "✅ Found APK from filesystem search: $FOUND_APK"
-              cp "$FOUND_APK" ./Velura.apk
-            else
-              echo "Strategy 2 failed. Trying broad search..."
-
-              # Strategy 3: Find ANY apk file anywhere
-              echo "=== ALL APK files on system ==="
-              find / -name "*.apk" -type f 2>/dev/null | grep -v node_modules || echo "No APK files found anywhere"
-
-              echo "=== ALL AAB files on system ==="
-              find / -name "*.aab" -type f 2>/dev/null | grep -v node_modules || echo "No AAB files found anywhere"
-
-              echo "=== Files in current directory ==="
-              ls -la *.apk *.aab 2>/dev/null || echo "No apk/aab in current directory"
-
-              echo "=== Last 50 lines of build output ==="
-              tail -50 build_output.log
-            fi
-          fi
-
-          # Final verification
-          if [ -f "./Velura.apk" ]; then
-            echo "========================================="
-            echo "✅ SUCCESS: Velura.apk is ready!"
-            ls -lh ./Velura.apk
-            echo "========================================="
-          else
-            echo "========================================="
-            echo "❌ FAILED: Could not locate APK file"
-            echo "========================================="
-            exit 1
-          fi
+      - name: 🔧 Generate Android project (Prebuild)
+        run: npx expo prebuild --platform android --clean --no-install
         env:
-          EXPO_TOKEN: ${{ secrets.EAS_TOKEN || secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: 🚀 Build APK with Gradle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -100
+
+      - name: 📦 Collect APK
+        run: |
+          echo "=== Searching for APK ==="
+          find android/app/build/outputs -name "*.apk" -type f 2>/dev/null
+          
+          APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
+          if [ -n "$APK" ]; then
+            cp "$APK" ./Velura.apk
+            echo "✅ APK collected: $(ls -lh Velura.apk | awk '{print $5}')"
+          else
+            echo "❌ No APK found in outputs"
+            find android -name "*.apk" -type f 2>/dev/null || echo "No APK anywhere in android/"
+            exit 1
+          fi
+
       - name: 📤 Upload Velura APK
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Velura-APK-Download
           path: Velura.apk
 
-      - name: 📤 Upload Build Logs
-        if: always()
+      - name: 📤 Upload Logs on Failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: build-logs
-          path: build_output.log
+          name: build-failure-logs
+          path: |
+            android/app/build/reports/
+            android/app/build/outputs/logs/
           if-no-files-found: ignore
