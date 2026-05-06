@@ -47,6 +47,17 @@ jobs:
         env:
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
+      - name: 📦 Bundle JavaScript for Android
+        run: |
+          mkdir -p android/app/src/main/assets
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file node_modules/expo-router/entry.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res/
+          echo "✅ JS bundle created: $(ls -lh android/app/src/main/assets/index.android.bundle | awk '{print $5}')"
+
       - name: 🚀 Build APK with Gradle
         working-directory: android
         run: |
@@ -57,18 +68,17 @@ jobs:
         run: |
           echo "=== All APK files generated ==="
           find android -name "*.apk" -type f 2>/dev/null
-          
-          # Try debug APK first, then release
+
           APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
           if [ -z "$APK" ]; then
             APK=$(find android -name "*.apk" -type f | grep -v intermediates | head -1)
           fi
-          
+
           if [ -n "$APK" ]; then
             cp "$APK" ./Velura.apk
-            echo "✅ APK collected: $(ls -lh Velura.apk | awk '{print $5}')"
+            echo "✅ APK ready: $(ls -lh Velura.apk | awk '{print $5}')"
           else
-            echo "❌ No APK found. Full android build outputs:"
+            echo "❌ No APK found"
             find android/app/build/outputs -type f 2>/dev/null || echo "No outputs directory"
             exit 1
           fi
