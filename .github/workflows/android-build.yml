@@ -47,53 +47,36 @@ jobs:
         env:
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: 🔐 Generate debug keystore for signing
-        run: |
-          keytool -genkeypair -v \
-            -keystore android/app/debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
-          echo "✅ Debug keystore created"
-          ls -la android/app/debug.keystore
+      - name: 🔐 Generate signing keystore
+        run: keytool -genkeypair -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" && ls -la android/app/debug.keystore
 
-      - name: 🚀 Build Release APK with Gradle
+      - name: 📦 Bundle JS and build Release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" --stacktrace 2>&1 | tee build.log | tail -80
-          echo ""
-          echo "=== Build finished ==="
-          echo "=== APK files produced ==="
-          find . -name "*.apk" -type f | grep -v intermediates || echo "No APK found in android/"
+          ./gradlew assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tee ../build.log | tail -80
+          echo "=== APK search ==="
+          find . -name "*.apk" -type f | grep -v intermediates
+          echo "=== Outputs dir ==="
+          ls -laR app/build/outputs/ 2>/dev/null || echo "no outputs dir"
 
       - name: 📦 Collect APK
         run: |
-          echo "=== Full search for APK files ==="
-          find . -name "*.apk" -type f 2>/dev/null | grep -v intermediates | grep -v node_modules
-
-          echo ""
-          echo "=== Contents of build outputs ==="
-          ls -laR android/app/build/outputs/ 2>/dev/null || echo "No outputs directory"
-
-          echo ""
           APK=$(find android/app/build/outputs -name "*.apk" -type f 2>/dev/null | head -1)
+          if [ -z "$APK" ]; then
+            APK=$(find android -name "*.apk" -type f 2>/dev/null | grep -v intermediates | head -1)
+          fi
           if [ -z "$APK" ]; then
             APK=$(find . -name "*.apk" -type f 2>/dev/null | grep -v intermediates | grep -v node_modules | head -1)
           fi
-
           if [ -n "$APK" ]; then
-            echo "✅ Found: $APK"
             cp "$APK" ./Velura.apk
-            ls -lh Velura.apk
+            echo "✅ APK: $(ls -lh Velura.apk)"
           else
-            echo "❌ No APK found"
-            echo "=== Last 50 lines of build log ==="
-            tail -50 android/build.log 2>/dev/null || true
+            echo "❌ No APK. Full build outputs:"
+            find android/app/build/outputs -type f 2>/dev/null || echo "none"
+            echo "--- Last 30 lines of build log ---"
+            tail -30 build.log
             exit 1
           fi
 
@@ -108,7 +91,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-failure-logs
-          path: |
-            android/build.log
-            android/app/build/reports/
+          path: build.log
           if-no-files-found: ignore
