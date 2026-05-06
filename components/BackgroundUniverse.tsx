@@ -206,7 +206,7 @@ const OrbitingBody: React.FC<{ rx: number, ry: number, planetSize: number, color
       <Ellipse rx={rx} ry={ry} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" strokeDasharray="5 5" />
       <AnimatedG animatedProps={animatedProps}>
         {hasRing && (
-          <Ellipse rx={planetSize * 2.2} ry={planetSize * 0.8} fill="none" stroke={color} strokeWidth="1" opacity={0.4} transform={[{ rotate: '25deg' }]} />
+          <Ellipse rx={planetSize * 2.2} ry={planetSize * 0.8} fill="none" stroke={color} strokeWidth="1" opacity={0.4} transform="rotate(25)" />
         )}
         <Circle r={planetSize} fill={color} />
         <Circle r={planetSize * 1.5} fill="white" opacity={0.1} />
