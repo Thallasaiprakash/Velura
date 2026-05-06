@@ -47,19 +47,11 @@ jobs:
         env:
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: 🔧 Enable JS bundling for debug builds
-        run: |
-          # By default, debug builds skip JS bundling (expecting Metro server).
-          # Set debuggableVariants to empty so ALL builds bundle JS into the APK.
-          sed -i 's|// debuggableVariants = \["liteDebug", "prodDebug"\]|debuggableVariants = []|' android/app/build.gradle
-          echo "✅ Patched build.gradle - debuggableVariants set to empty"
-          grep -n "debuggableVariants" android/app/build.gradle
-
-      - name: 🚀 Build Debug APK (with JS bundled)
+      - name: 🚀 Build Release APK
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -50
+          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -50
           echo ""
           echo "=== Build complete ==="
 
