@@ -49,11 +49,24 @@ jobs:
 
       - name: 🚀 Build Release APK
         working-directory: android
+        continue-on-error: true
+        id: build_apk
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace > build_log.txt 2>&1
+          if grep -q "BUILD FAILED" build_log.txt; then
+            cat build_log.txt | tail -n 100
+            exit 1
+          fi
           echo ""
           echo "=== Build complete ==="
+
+      - name: 📤 Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gradle-build-log
+          path: android/build_log.txt
 
       - name: 📦 Collect APK
         run: |
