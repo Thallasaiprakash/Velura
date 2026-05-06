@@ -47,39 +47,38 @@ jobs:
         env:
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: 📦 Bundle JavaScript for Android
-        run: |
-          mkdir -p android/app/src/main/assets
-          npx react-native bundle \
-            --platform android \
-            --dev false \
-            --entry-file node_modules/expo-router/entry.js \
-            --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res/
-          echo "✅ JS bundle created: $(ls -lh android/app/src/main/assets/index.android.bundle | awk '{print $5}')"
-
-      - name: 🚀 Build APK with Gradle
+      - name: 🚀 Build Release APK with Gradle
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -100
+          ./gradlew assembleRelease --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -50
+          echo ""
+          echo "=== Gradle build complete ==="
 
       - name: 📦 Collect APK
         run: |
-          echo "=== All APK files generated ==="
-          find android -name "*.apk" -type f 2>/dev/null
+          echo "=== Listing ALL .apk and .aab files under android/ ==="
+          find android -name "*.apk" -o -name "*.aab" 2>/dev/null | grep -v intermediates
 
-          APK=$(find android/app/build/outputs -name "*.apk" -type f | head -1)
-          if [ -z "$APK" ]; then
-            APK=$(find android -name "*.apk" -type f | grep -v intermediates | head -1)
-          fi
+          echo ""
+          echo "=== Listing full outputs directory ==="
+          find android/app/build/outputs -type f 2>/dev/null || echo "outputs dir missing"
+
+          echo ""
+          echo "=== Attempting to collect APK ==="
+
+          # Search for any APK (excluding intermediates/test)
+          APK=$(find android -name "*.apk" -type f 2>/dev/null | grep -v intermediates | grep -v androidTest | head -1)
 
           if [ -n "$APK" ]; then
+            echo "Found APK at: $APK"
             cp "$APK" ./Velura.apk
             echo "✅ APK ready: $(ls -lh Velura.apk | awk '{print $5}')"
           else
-            echo "❌ No APK found"
-            find android/app/build/outputs -type f 2>/dev/null || echo "No outputs directory"
+            echo "❌ No APK found anywhere under android/"
+            echo ""
+            echo "=== Full find of android/app/build ==="
+            find android/app/build -type f -name "*.apk" -o -name "*.aab" -o -name "*.zip" 2>/dev/null || echo "nothing"
             exit 1
           fi
 
