@@ -47,36 +47,36 @@ jobs:
         env:
           EXPO_PUBLIC_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-      - name: 🔐 Generate signing keystore
-        run: keytool -genkeypair -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" && ls -la android/app/debug.keystore
+      - name: 🔧 Enable JS bundling for debug builds
+        run: |
+          # By default, debug builds skip JS bundling (expecting Metro server).
+          # Set debuggableVariants to empty so ALL builds bundle JS into the APK.
+          sed -i 's|// debuggableVariants = \["liteDebug", "prodDebug"\]|debuggableVariants = []|' android/app/build.gradle
+          echo "✅ Patched build.gradle - debuggableVariants set to empty"
+          grep -n "debuggableVariants" android/app/build.gradle
 
-      - name: 📦 Bundle JS and build Release APK
+      - name: 🚀 Build Debug APK (with JS bundled)
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tee ../build.log | tail -80
-          echo "=== APK search ==="
-          find . -name "*.apk" -type f | grep -v intermediates
-          echo "=== Outputs dir ==="
-          ls -laR app/build/outputs/ 2>/dev/null || echo "no outputs dir"
+          ./gradlew assembleDebug --no-daemon -Dorg.gradle.jvmargs="-Xmx4g" 2>&1 | tail -50
+          echo ""
+          echo "=== Build complete ==="
 
       - name: 📦 Collect APK
         run: |
+          echo "=== APK files ==="
+          find android -name "*.apk" -type f | grep -v intermediates
+          echo ""
           APK=$(find android/app/build/outputs -name "*.apk" -type f 2>/dev/null | head -1)
           if [ -z "$APK" ]; then
             APK=$(find android -name "*.apk" -type f 2>/dev/null | grep -v intermediates | head -1)
-          fi
-          if [ -z "$APK" ]; then
-            APK=$(find . -name "*.apk" -type f 2>/dev/null | grep -v intermediates | grep -v node_modules | head -1)
           fi
           if [ -n "$APK" ]; then
             cp "$APK" ./Velura.apk
             echo "✅ APK: $(ls -lh Velura.apk)"
           else
-            echo "❌ No APK. Full build outputs:"
-            find android/app/build/outputs -type f 2>/dev/null || echo "none"
-            echo "--- Last 30 lines of build log ---"
-            tail -30 build.log
+            echo "❌ No APK found"
             exit 1
           fi
 
@@ -91,5 +91,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-failure-logs
-          path: build.log
+          path: |
+            android/app/build/reports/
           if-no-files-found: ignore
