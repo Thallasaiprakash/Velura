@@ -33,9 +33,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserId(firebaseUser.uid);
         await AsyncStorage.setItem(AUTH_KEY, firebaseUser.uid);
       } else {
-        // Sign in anonymously
+        // Sign in anonymously with a timeout
         try {
-          const result = await signInAnonymously(auth);
+          const authTimeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 5000));
+          const result = await Promise.race([
+            signInAnonymously(auth),
+            authTimeout
+          ]) as any;
           setUser(result.user);
           setUserId(result.user.uid);
           await AsyncStorage.setItem(AUTH_KEY, result.user.uid);

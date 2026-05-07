@@ -212,8 +212,8 @@ export async function getUserProfile(userId: string | null): Promise<UserProfile
 
   try {
     const userRef = doc(db, 'users', userId);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) {
+    const snap = await withTimeout(getDoc(userRef), FIRESTORE_TIMEOUT_MS, null as any);
+    if (snap && snap.exists && snap.exists()) {
       const data = snap.data() as UserProfile;
       await setCached(PROFILE_CACHE_KEY, data);
       return data;
@@ -227,6 +227,26 @@ export async function getUserProfile(userId: string | null): Promise<UserProfile
 
 // ==================== WEEK TASKS ====================
 
+const FIRESTORE_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, defaultReturnValue: T): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[Firestore] Request timed out after ${ms}ms.`);
+      resolve(defaultReturnValue);
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.then((res) => {
+      clearTimeout(timeoutId);
+      return res;
+    }),
+    timeoutPromise,
+  ]);
+}
+
 export async function getWeekTasks(userId: string | null, weekId: string): Promise<WeekData> {
   const cacheKey = userId ? `${TASKS_CACHE_KEY}_${weekId}` : `${LOCAL_ONLY_TASKS_PREFIX}_${weekId}`;
   const cached = await getCached<WeekData>(cacheKey);
@@ -236,8 +256,9 @@ export async function getWeekTasks(userId: string | null, weekId: string): Promi
 
   try {
     const weekRef = doc(db, 'users', userId, 'weeks', weekId);
-    const snap = await getDoc(weekRef);
-    if (snap.exists()) {
+    const snap = await withTimeout(getDoc(weekRef), FIRESTORE_TIMEOUT_MS, null as any);
+    
+    if (snap && snap.exists && snap.exists()) {
       const data = snap.data() as WeekData;
       // Ensure all days exist even if missing from DB
       const normalized = { ...getEmptyWeek(), ...data, days: { ...getEmptyWeek().days, ...data.days } };
