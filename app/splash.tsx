@@ -27,7 +27,6 @@ export default function SplashScreen() {
   const raysOpacity = useSharedValue(0);
   const raysScale = useSharedValue(0.4);
   const textOpacity = useSharedValue(0);
-  const textLetterSpacing = useSharedValue(0);
   const taglineOpacity = useSharedValue(0);
 
   useEffect(() => {
@@ -39,9 +38,7 @@ export default function SplashScreen() {
     raysOpacity.value = withDelay(400, withTiming(1, { duration: 500 }));
     raysScale.value = withDelay(400, withSpring(1.0, { damping: 12, stiffness: 100 }));
 
-    // "VELURA" text
     textOpacity.value = withDelay(700, withTiming(1, { duration: 600 }));
-    textLetterSpacing.value = withDelay(700, withTiming(Theme.letterSpacing.widest, { duration: 700, easing: Easing.out(Easing.cubic) }));
 
     // Tagline
     taglineOpacity.value = withDelay(1200, withTiming(1, { duration: 600 }));
@@ -69,7 +66,6 @@ export default function SplashScreen() {
   }));
   const textStyle = useAnimatedStyle(() => ({
     opacity: textOpacity.value,
-    letterSpacing: textLetterSpacing.value,
   }));
   const taglineStyle = useAnimatedStyle(() => ({
     opacity: taglineOpacity.value,
@@ -143,6 +139,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: Theme.fontSize.xxl,
     fontWeight: Theme.fontWeight.bold,
+    letterSpacing: Theme.letterSpacing.widest,
     marginBottom: 12,
   },
   tagline: {
