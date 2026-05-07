@@ -30,7 +30,7 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
         Context context = getReactApplicationContext();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
-            promise.resolve(alarmManager.canScheduleExactAlarms());
+            promise.resolve(alarmManager != null && alarmManager.canScheduleExactAlarms());
         } else {
             promise.resolve(true);
         }
@@ -51,7 +51,7 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
     public void isIgnoringBatteryOptimizations(Promise promise) {
         Context context = getReactApplicationContext();
         PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        if (pm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             promise.resolve(pm.isIgnoringBatteryOptimizations(context.getPackageName()));
         } else {
             promise.resolve(true);
@@ -97,6 +97,7 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
     public void scheduleAlarm(double timestamp, String title, String body, String id) {
         Context context = getReactApplicationContext();
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return;
 
         Intent intent = new Intent(context, TaskAlarmReceiver.class);
         intent.setAction("com.saiprakash77.velura.TASK_ALARM");
@@ -115,13 +116,14 @@ public class VeluraAlarmModule extends ReactContextBaseJavaModule {
         } else {
             alarmManager.setExact(AlarmManager.RTC_WAKEUP, (long) timestamp, pi);
         }
-        Log.d("VeluraAlarm", "Scheduled alarm: " + id + " at " + (long)timestamp);
     }
 
     @ReactMethod
     public void cancelAlarm(String id) {
         Context context = getReactApplicationContext();
         AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        if (alarmManager == null) return;
+
         Intent intent = new Intent(context, TaskAlarmReceiver.class);
         intent.setAction("com.saiprakash77.velura.TASK_ALARM");
         

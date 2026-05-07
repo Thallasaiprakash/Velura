@@ -207,9 +207,10 @@ const OrbitPlanet = ({ task, index, total, onComplete, onEnterTunnel, chronotype
 
   const planetAnimatedProps = useAnimatedProps(() => {
     const rotVal = selfRotation.value || 0;
-    const rot = isNaN(rotVal) ? "0" : rotVal.toFixed(1);
     return {
-      transform: `rotate(${rot} 50 50)`
+      rotation: Number(rotVal.toFixed(1)),
+      originX: 50,
+      originY: 50
     };
   });
 

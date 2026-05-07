@@ -1,18 +1,6 @@
 package com.saiprakash77.velura;
 
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.os.Build;
-import android.util.Log;
-
-import androidx.core.app.NotificationCompat;
-
-public class UnlockReceiver extends BroadcastReceiver {
+public class UnlockReceiver extends android.content.BroadcastReceiver {
     private static final String TAG = "VeluraUnlockReceiver";
     private static final String CHANNEL_ID = "velura-unlock";
     private static final int NOTIFICATION_ID = 9001;
@@ -21,10 +9,10 @@ public class UnlockReceiver extends BroadcastReceiver {
     private static final String KEY_LAST_TRIGGER = "last_unlock_trigger";
 
     @Override
-    public void onReceive(Context context, Intent intent) {
+    public void onReceive(android.content.Context context, android.content.Intent intent) {
         String action = intent.getAction();
-        if (Intent.ACTION_USER_PRESENT.equals(action)) {
-            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        if (android.content.Intent.ACTION_USER_PRESENT.equals(action)) {
+            android.content.SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE);
             long now = System.currentTimeMillis();
             if (now - prefs.getLong(KEY_LAST_TRIGGER, 0) < 60000) return;
             
@@ -33,23 +21,28 @@ public class UnlockReceiver extends BroadcastReceiver {
         }
     }
 
-    private void fireUnlockNotification(Context context) {
-        NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            nm.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Unlock Briefing", NotificationManager.IMPORTANCE_HIGH));
+    private void fireUnlockNotification(android.content.Context context) {
+        android.app.NotificationManager nm = (android.app.NotificationManager) context.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            nm.createNotificationChannel(new android.app.NotificationChannel(CHANNEL_ID, "Unlock Briefing", android.app.NotificationManager.IMPORTANCE_HIGH));
         }
 
-        Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
-        PendingIntent pi = PendingIntent.getActivity(context, 0, launchIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        android.content.Intent launchIntent = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (launchIntent == null) return;
+        
+        android.app.PendingIntent pi = android.app.PendingIntent.getActivity(context, 0, launchIntent, android.app.PendingIntent.FLAG_UPDATE_CURRENT | android.app.PendingIntent.FLAG_IMMUTABLE);
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(context, CHANNEL_ID)
+        androidx.core.app.NotificationCompat.Builder builder = new androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("VELURA \u2728")
+            .setContentTitle("VELURA")
             .setContentText("Your day awaits! Tap to hear your briefing.")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setContentIntent(pi);
 
-        nm.notify(NOTIFICATION_ID, builder.build());
+        android.app.Notification notification = builder.build();
+        nm.notify(NOTIFICATION_ID, notification);
     }
 }

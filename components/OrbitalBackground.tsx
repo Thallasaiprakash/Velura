@@ -205,7 +205,8 @@ const AnimatedAccretionDisk: React.FC<{ scale: Animated.SharedValue<number>, rot
     const s = (isNaN(sVal) ? 1 : sVal).toFixed(3);
     const r = (isNaN(rVal) ? 0 : rVal).toFixed(1);
     return {
-      transform: `scale(${s}) rotate(${r})`,
+      scale: Number(s),
+      rotation: Number(r),
       opacity: 0.8
     };
   });
@@ -248,7 +249,8 @@ const CelestialOrbital: React.FC<{ rx: number, ry: number, planetSize: number, c
     const tx = (Math.cos(rad) * rx).toFixed(2);
     const ty = (Math.sin(rad) * ry).toFixed(2);
     return {
-      transform: `translate(${tx}, ${ty})`,
+      x: Number(tx),
+      y: Number(ty),
     };
   });
 
@@ -299,7 +301,8 @@ const AchievementParticle: React.FC<{ index: number, total: number, achievementC
     const ty = (Math.sin(rad) * orbitY).toFixed(2);
     const isVisible = (achievementCount.value || 0) > index;
     return {
-      transform: `translate(${tx}, ${ty})`,
+      x: Number(tx),
+      y: Number(ty),
       opacity: isVisible ? 0.9 : 0,
     };
   });
@@ -345,7 +348,8 @@ const DustParticle: React.FC<{ x: number, y: number, size: number, duration: num
     const tx = (moveX.value || 0).toFixed(2);
     const ty = (moveY.value || 0).toFixed(2);
     return {
-      transform: `translate(${tx}, ${ty})`,
+      x: Number(tx),
+      y: Number(ty),
       opacity: 0.15
     };
   });
