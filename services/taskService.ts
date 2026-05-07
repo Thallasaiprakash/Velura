@@ -188,7 +188,7 @@ export async function saveUserProfile(userId: string | null, profile: Partial<Us
   try {
     if (userId) {
       const userRef = doc(db, 'users', userId);
-      await setDoc(userRef, { ...profile, lastActiveAt: Date.now() }, { merge: true });
+      await withTimeout(setDoc(userRef, { ...profile, lastActiveAt: Date.now() }, { merge: true }), FIRESTORE_TIMEOUT_MS, null);
     }
     
     // Always update local cache regardless of auth state
@@ -295,7 +295,7 @@ export async function saveWeekTasks(userId: string | null, weekId: string, weekD
     const sanitizedData = sanitize(weekData);
     if (userId) {
       const weekRef = doc(db, 'users', userId, 'weeks', weekId);
-      await setDoc(weekRef, sanitizedData, { merge: false });
+      await withTimeout(setDoc(weekRef, sanitizedData, { merge: false }), FIRESTORE_TIMEOUT_MS, null);
     }
     await setCached(cacheKey, sanitizedData);
   } catch (error) {

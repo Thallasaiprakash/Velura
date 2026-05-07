@@ -71,7 +71,14 @@ export default function StepFirstWeek() {
   };
 
   const handleStart = async () => {
-    if (!userId) return;
+    let activeUserId = userId;
+    if (!activeUserId) {
+      activeUserId = await AsyncStorage.getItem('velura_user_id');
+      if (!activeUserId) {
+        activeUserId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        await AsyncStorage.setItem('velura_user_id', activeUserId);
+      }
+    }
 
     const weekId = getWeekId();
     const weekData: WeekData = {
@@ -79,7 +86,7 @@ export default function StepFirstWeek() {
       days: dayTasks,
       updatedAt: Date.now(),
     };
-    await saveWeekTasks(userId, weekId, weekData);
+    await saveWeekTasks(activeUserId, weekId, weekData);
 
     // Schedule notifications
     const voiceStyle = (await AsyncStorage.getItem(VOICE_STYLE_KEY)) || 'calm';
