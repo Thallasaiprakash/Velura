@@ -107,7 +107,7 @@ export const OrbitalBackground: React.FC<OrbitalBackgroundProps> = ({
     <View style={styles.container}>
       {/* Background Layer - High Fidelity Galaxy Generated Image */}
       <Image 
-        source={require('../assets/images/cosmic_bg.png')} 
+        source={require('../assets/images/cosmic_bg.jpg')} 
         style={styles.bgImage}
         resizeMode="cover"
       />
