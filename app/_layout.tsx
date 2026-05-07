@@ -36,6 +36,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <PermissionGuardian />
       <Stack
+        initialRouteName="splash"
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: Colors.bgPrimary },
